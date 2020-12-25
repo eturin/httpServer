@@ -1,13 +1,3 @@
-//
-// request_parser.hpp
-// ~~~~~~~~~~~~~~~~~~
-//
-// Copyright (c) 2003-2012 Christopher M. Kohlhoff (chris at kohlhoff dot com)
-//
-// Distributed under the Boost Software License, Version 1.0. (See accompanying
-// file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
-//
-
 #ifndef HTTP_SERVER3_REQUEST_PARSER_HPP
 #define HTTP_SERVER3_REQUEST_PARSER_HPP
 
@@ -16,29 +6,24 @@
 
 namespace http {
     namespace server3 {
-
         struct request;
 
-/// Parser for incoming requests.
-        class request_parser
-        {
+        // Разбор входящего зароса
+        class request_parser {
         public:
-            /// Construct ready to parse the request method.
             request_parser();
 
-            /// Reset to initial parser state.
+            // сброс состояния
             void reset();
 
-            /// Parse some data. The tribool return value is true when a complete request
-            /// has been parsed, false if the data is invalid, indeterminate when more
-            /// data is required. The InputIterator return value indicates how much of the
-            /// input has been consumed.
+            /* разбирает входящий запрос. Возвращаемое значение (tribool) равно true,
+             * если разбор выполнен, и false, если запрос не валидный или требуется больше данных.
+             * Возвращаемое значение InputIterator указывает, какая часть ввода была использована. */
             template <typename InputIterator>
             boost::tuple<boost::tribool, InputIterator> parse(request& req,
                                                               InputIterator begin, InputIterator end)
             {
-                while (begin != end)
-                {
+                while (begin != end) {
                     boost::tribool result = consume(req, *begin++);
                     if (result || !result)
                         return boost::make_tuple(result, begin);
@@ -46,26 +31,24 @@ namespace http {
                 boost::tribool result = boost::indeterminate;
                 return boost::make_tuple(result, begin);
             }
-
         private:
-            /// Handle the next character of input.
+            // обработка следующего символа запроса (input)
             boost::tribool consume(request& req, char input);
 
-            /// Check if a byte is an HTTP character.
+            // проверка на символ HTTP
             static bool is_char(int c);
 
-            /// Check if a byte is an HTTP control character.
+            // проверка на управляющий символ
             static bool is_ctl(int c);
 
-            /// Check if a byte is defined as an HTTP tspecial character.
+            // проверка наспециальный символ
             static bool is_tspecial(int c);
 
-            /// Check if a byte is a digit.
+            // проверка на цифру
             static bool is_digit(int c);
 
-            /// The current state of the parser.
-            enum state
-            {
+            // состояние в настоящий момент
+            enum state {
                 method_start,
                 method,
                 uri,

@@ -1,13 +1,3 @@
-//
-// reply.hpp
-// ~~~~~~~~~
-//
-// Copyright (c) 2003-2012 Christopher M. Kohlhoff (chris at kohlhoff dot com)
-//
-// Distributed under the Boost Software License, Version 1.0. (See accompanying
-// file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
-//
-
 #ifndef HTTP_SERVER3_REPLY_HPP
 #define HTTP_SERVER3_REPLY_HPP
 
@@ -19,12 +9,10 @@
 namespace http {
     namespace server3 {
 
-/// A reply to be sent to a client.
-        struct reply
-        {
-            /// The status of the reply.
-            enum status_type
-            {
+       // структура ответа
+        struct reply {
+            // статус
+            enum status_type {
                 ok = 200,
                 created = 201,
                 accepted = 202,
@@ -43,21 +31,21 @@ namespace http {
                 service_unavailable = 503
             } status;
 
-            /// The headers to be included in the reply.
+            // заголовки
             std::vector<header> headers;
 
-            /// The content to be sent in the reply.
+            // тело ответа
             std::string content;
 
-            /// Convert the reply into a vector of buffers. The buffers do not own the
-            /// underlying memory blocks, therefore the reply object must remain valid and
-            /// not be changed until the write operation has completed.
+            /* Преобразуйте ответ в вектор буферов.
+             * Буферы не владеют нижележащими блоками памяти,
+             * поэтому объект ответа должен оставаться действительным
+             * и не изменяться до завершения операции записи. */
             std::vector<boost::asio::const_buffer> to_buffers();
 
-            /// Get a stock reply.
+            // формирование стандартного ответа
             static reply stock_reply(status_type status);
         };
-
     } // namespace server3
 } // namespace http
 

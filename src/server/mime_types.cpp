@@ -13,30 +13,21 @@
 namespace http {
     namespace server3 {
         namespace mime_types {
-
-            struct mapping
-            {
+            struct mapping {
                 const char* extension;
                 const char* mime_type;
-            } mappings[] =
-                    {
-                            { "gif", "image/gif" },
-                            { "htm", "text/html" },
-                            { "html", "text/html" },
-                            { "jpg", "image/jpeg" },
-                            { "png", "image/png" },
-                            { 0, 0 } // Marks end of list.
-                    };
+            } m[] = {
+                        { "gif" , "image/gif"  },
+                        { "htm" , "text/html"  },
+                        { "html", "text/html"  },
+                        { "jpg" , "image/jpeg" },
+                        { "png" , "image/png"  }
+            };
 
-            std::string extension_to_type(const std::string& extension)
-            {
-                for (mapping* m = mappings; m->extension; ++m)
-                {
-                    if (m->extension == extension)
-                    {
-                        return m->mime_type;
-                    }
-                }
+            std::string extension_to_type(const std::string& extension) {
+                for (auto &e : m)
+                    if (e.extension == extension)
+                        return e.mime_type;
 
                 return "text/plain";
             }
