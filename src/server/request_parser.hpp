@@ -3,6 +3,7 @@
 
 #include <boost/logic/tribool.hpp>
 #include <boost/tuple/tuple.hpp>
+#include <boost/lexical_cast.hpp>
 
 namespace http {
     namespace server3 {
@@ -32,6 +33,7 @@ namespace http {
                 return boost::make_tuple(result, begin);
             }
         private:
+
             // обработка следующего символа запроса (input)
             boost::tribool consume(request& req, char input);
 
@@ -68,7 +70,8 @@ namespace http {
                 space_before_header_value,
                 header_value,
                 expecting_newline_2,
-                expecting_newline_3
+                expecting_newline_3,
+                body
             } state_;
         };
 

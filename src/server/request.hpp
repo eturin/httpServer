@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <pqxx/pqxx>
 #include "header.hpp"
 
 namespace http {
@@ -10,11 +11,17 @@ namespace http {
 
         // запрос полученный от клиента.
         struct request {
+            bool save(pqxx::connection * conn);
             std::string method;
             std::string uri;
             int http_version_major;
             int http_version_minor;
             std::vector<header> headers;
+            std::size_t body_size;
+            std::vector<char> body;
+        private:
+            std::size_t id;
+
         };
     } // namespace server3
 } // namespace http

@@ -10,11 +10,13 @@ namespace http {
         server::server(const std::string& address,
                        const std::string& port,
                        const std::string& doc_root,
-                       std::size_t thread_pool_size) : thread_pool_size_(thread_pool_size),
+                       std::size_t thread_pool_size,
+                       Context &context) : thread_pool_size_(thread_pool_size),
                                                        signals_(io_service_),
                                                        acceptor_(io_service_),
                                                        new_connection_(),
-                                                       request_handler_(doc_root)
+                                                       request_handler_(doc_root,context),
+                                                       context(context)
         {
             // Регистрируем обработчик сигналов прекращения работы сервера.
             // Можно регистрировать обработчики сигнала несколько раз при условие, что
@@ -42,14 +44,14 @@ namespace http {
             // создаем пул потоков
             std::vector<boost::shared_ptr<boost::thread> > threads;
             for (std::size_t i = 0; i < thread_pool_size_; ++i) {
-                boost::shared_ptr<boost::thread> thread(new boost::thread(
-                        boost::bind(&boost::asio::io_service::run, &io_service_)));
+                boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&boost::asio::io_service::run, &io_service_)));
                 threads.push_back(thread);
+                context.add_uuid_num(thread->get_id(), i);
             }
 
             // дожидаемся готовности потоков
-            for (std::size_t i = 0; i < threads.size(); ++i)
-                threads[i]->join();
+            for (auto &e: threads)
+                e->join();
         }
 
         void server::start_accept() {

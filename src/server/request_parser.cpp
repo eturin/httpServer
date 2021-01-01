@@ -16,6 +16,7 @@ namespace http {
                         return false;
 
                     state_ = method;
+                    req.body_size = 0;
                     req.method.push_back(input);
                     return boost::indeterminate;
                 case method:
@@ -169,11 +170,23 @@ namespace http {
                 case expecting_newline_2:
                     if (input == '\n') {
                         state_ = header_line_start;
+                        if (req.headers.size() && req.headers.back().name == "Content-Length") {
+                            req.body_size = boost::lexical_cast<std::size_t>(req.headers.back().value.c_str());
+                            req.body.resize(req.body_size);
+                        }
                         return boost::indeterminate;
                     } else
                         return false;
                 case expecting_newline_3:
-                    return (input == '\n');
+                    if (input == '\n' && req.body_size){
+                        state_ = body;
+                        req.body_size = 0;
+                        return boost::indeterminate;
+                    } else return input == '\n';
+                case body:
+                    req.body[req.body_size++]=input;
+                    if (req.body_size == req.body.size()) return true;
+                    else return boost::indeterminate;
                 default:
                     return false;
             }

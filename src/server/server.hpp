@@ -8,6 +8,7 @@
 #include <boost/shared_ptr.hpp>
 #include "connection.hpp"
 #include "request_handler.hpp"
+#include "context.hpp"
 
 namespace http {
     namespace server3 {
@@ -16,9 +17,11 @@ namespace http {
             explicit server(const std::string& address,
                             const std::string& port,
                             const std::string& doc_root,
-                            std::size_t thread_pool_size);
+                            std::size_t thread_pool_size,
+                            Context &context);
             void run();
         private:
+            Context &context;
             // асинхронное принятие соединений
             void start_accept();
             // обработка завершения асинхронной операции принятия.
