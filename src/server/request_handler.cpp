@@ -39,8 +39,7 @@ namespace http {
                 || request_path.rfind("/async/") == 0) {
                 //логируем
                 {
-                    auto id = boost::this_thread::get_id();
-
+                    req.save(context.get_conn());
                     //запрос
                     std::size_t k = request_path.find('/',1);
                     if (k != request_path.npos){

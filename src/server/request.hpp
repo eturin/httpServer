@@ -11,7 +11,7 @@ namespace http {
 
         // запрос полученный от клиента.
         struct request {
-            bool save(pqxx::connection * conn);
+            bool save(pqxx::connection * conn) const;
             std::string method;
             std::string uri;
             int http_version_major;
