@@ -37,23 +37,11 @@ namespace http {
 
             if (request_path.rfind("/sync/") == 0
                 || request_path.rfind("/async/") == 0) {
-                //логируем
-                {
-                    req.save(context.get_conn());
-                    //запрос
-                    std::size_t k = request_path.find('/',1);
-                    if (k != request_path.npos){
-                        std::string end_point = request_path.substr(k+1,request_path.find('?')-k-1);
-                        std::cout << req.method << " " << request_path << ' '<< end_point <<'\n';
-
-                        //заголовки
-                        for (auto &e : req.headers) {
-                            std::cout << '\t' << e.name << " = " << e.value << '\n';
-                        }
-                    } else {
-                        //err
-                    }
-                }
+                //  сохраняем
+                if(!req.save(context.get_conn(), context)) {
+                    rep = reply::stock_reply(reply::internal_server_error);
+                    return;
+                };
                 //обработчик
                 //ответ
                 ;

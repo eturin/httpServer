@@ -31,6 +31,10 @@ namespace http {
                 case uri:
                     if (input == ' ') {
                         state_ = http_version_h;
+                        std::size_t k = req.uri.find('/',1);
+                        if (k != req.uri.npos)
+                            req.end_point = req.uri.substr(k+1,req.uri.find('?')-k-1);
+
                         return boost::indeterminate;
                     } else if (is_ctl(input))
                         return false;

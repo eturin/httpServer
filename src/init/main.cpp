@@ -30,8 +30,8 @@ int main(int argc, char* argv[]) {
                    id serial PRIMARY KEY,
                    method    VARCHAR(100) not null,
                    end_point VARCHAR(100) not null,
-                   url       VARCHAR(500) not null,
-                   body      text,
+                   uri       VARCHAR(500) not null,
+                   body      bytea,
                    created   TIMESTAMP NOT NULL);
             --заголовки запроса
             create table IF NOT EXISTS queue_headers(

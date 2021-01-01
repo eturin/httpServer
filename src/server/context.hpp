@@ -14,6 +14,7 @@ namespace http {
         public:
              Context();
              bool make_pool(std::size_t cnt, const std::string & connection_string);
+             bool prepare(pqxx::connection *conn);
              void add_uuid_num(boost::thread::id uuid, char num);
              pqxx::connection* get_conn();
              ~Context();

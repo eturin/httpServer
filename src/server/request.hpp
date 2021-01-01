@@ -5,23 +5,24 @@
 #include <vector>
 #include <pqxx/pqxx>
 #include "header.hpp"
+#include "context.hpp"
 
 namespace http {
     namespace server3 {
 
         // запрос полученный от клиента.
         struct request {
-            bool save(pqxx::connection * conn) const;
+            bool save(pqxx::connection * conn, Context & cont) const;
             std::string method;
             std::string uri;
+            std::string end_point;
             int http_version_major;
             int http_version_minor;
             std::vector<header> headers;
             std::size_t body_size;
             std::vector<char> body;
         private:
-            std::size_t id;
-
+            mutable unsigned id;
         };
     } // namespace server3
 } // namespace http
