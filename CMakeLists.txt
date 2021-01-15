@@ -38,3 +38,11 @@ add_executable(init
         src/init/main.cpp)
 target_link_libraries(init pqxx)
 target_link_libraries(init pq)
+
+project(mkxml)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/handlers)
+add_executable(mkxml
+        src/mkxml/Context.cpp
+        src/mkxml/main.cpp)
+target_link_libraries(mkxml pqxx)
+target_link_libraries(mkxml pq)
