@@ -14,7 +14,7 @@ int main(int argc, char* argv[]) {
                *db_port      = ENV("DB_PORT","5432"),
                *db_name      = ENV("DB_NAME","mdm"),
                *db_user      = ENV("DB_USER","postgres"),
-               *db_user_pass = ENV("DB_USER_PASS","knpo1980");
+               *db_user_pass = ENV("DB_USER_PASS","123");
     std::string connection_str =std::string(R"(
             dbname   = )")+ db_name      + R"(
             user     = )" + db_user      + R"(
