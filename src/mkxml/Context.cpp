@@ -429,13 +429,15 @@ void RefType::item(const pqxx::binarystring &item_ref, std::ostringstream &sout)
     }
 
     if (cont.prepared_sql.find(name) == cont.prepared_sql.end()) {
-        std::string sql("select * from ");
-        sql.append(table).append(" as t where t.Ссылка = $1 limit 1");
+        std::string sql("select t.* from ");
+        sql.append(table).append(R"( as t where t.Ссылка = $1 and t.СтатусЗаписи = E'\\x80BF00505601131511E66F56BA579BBF' /*Эталон*/ limit 1 )");
         cont.prepared_sql[name] = sql;
         db.cn.prepare(name, sql);
     }
 
     pqxx::result rs = db.p_W->prepared(name)(item_ref).exec();
+    if (rs.affected_rows() == 0) return;
+
     // новый элемент
     sout << "\t\t<Item>\n"
          << "\t\t\t<GID>" << rs[0]["Код"].c_str() << "</GID>\n"
@@ -586,7 +588,82 @@ void RefType::item(const pqxx::binarystring &item_ref, std::ostringstream &sout)
     }
 
     //остальные таблицы
+    for (auto &e : tables) {
+        if (e.first == ""
+           || e.first == "Атрибуты"
+           || e.first == "Классификация"
+           || e.first == "Ярлыки"
+           || e.first == "Изменения"
+           || e.second.size() == 0)
+            continue;
 
-    sout << "\t\t</Item>\n";
+        const std::string &tab_name = e.second[0].table;
+        if (cont.prepared_sql.find(tab_name) == cont.prepared_sql.end()) {
+            std::string sql("select * from ");
+            sql.append(tab_name + " as t where t.Ссылка = $1");
+            cont.prepared_sql[tab_name] = sql;
+            db.cn.prepare(tab_name, sql);
+        }
+        rs = db.p_W->prepared(tab_name)(item_ref).exec();
+        if (rs.affected_rows()) {
+            sout << "\t\t\t<Table>\n"
+                 << "\t\t\t\t<Name>" << e.first << "</Name>\n";
+            unsigned n=0;
+            for (const auto &row:rs) {
+                sout << "\t\t\t\t<Strings>\n"
+                     << "\t\t\t\t\t<Number>" << n++ <<"</Number>\n";
+                for (const Field &x : e.second) {
+
+                    const std::string *p_vid = &x.vid,
+                            *p_field = &x.field;
+                    std::string tmp;
+                    bool is_set = false;
+                    if (x.vid.find("Тип") != std::string::npos) {
+                        if (row[x.field_type].as<int>() == 5) {
+                            tmp = "Строка";
+                            p_field = &x.field_str;
+                            is_set = true;
+                        } else if (row[x.field_type].as<int>() == 4) {
+                            tmp = "Дата";
+                            p_field = &x.field_date;
+                            is_set = true;
+                        } else if (row[x.field_type].as<int>() == 3) {
+                            tmp = "Число";
+                            p_field = &x.field_num;
+                            is_set = true;
+                        } else if (row[x.field_type].as<int>() == 2) {
+                            tmp = "Булево";
+                            p_field = &x.field_bool;
+                            is_set = true;
+                        }
+                        if (is_set) p_vid = &tmp;
+                    }
+                    if (!is_set && x.vid.find("Вид") != std::string::npos) {
+                        p_vid = &cont.mTablesType[row[x.field_vid].c_str()].table;
+                        p_field = &x.field_ref;
+                    }
+                    is_set = true;
+                    if (is_set) {
+                        sout << "\t\t\t<PropertyList>\n"
+                             << "\t\t\t\t<PropertyType>props</PropertyType>\n"
+                             << "\t\t\t\t<PropertyID>" << x.name << "</PropertyID>\n"
+                             << "\t\t\t\t<PropertyName>" << x.name << "</PropertyName>\n"
+                             << "\t\t\t\t<PropertyValue>\n";
+
+                        field(row, *p_vid, *p_field, sout, cont, system_ref);
+
+                        sout << "\t\t\t\t</PropertyValue>\n"
+                             << "\t\t\t</PropertyList>\n";
+                    }
+
+
+                }
+                sout << "\t\t\t\t</Strings>\n"
+                     << "\t\t\t</Table>\n";
+            }
+        }
+    }
+    sout << "\t\t\t<IdStatus>000000002</IdStatus>\n"
+         << "\t\t</Item>\n";
 }
 
