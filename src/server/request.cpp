@@ -14,9 +14,9 @@ namespace http {
             if (body_size) {
                 pqxx::binarystring a(reinterpret_cast<const char*>(&body_size),4),
                                    b(&body[0],body_size);
-                r = W.prepared("dml_queue_post")(uri.substr(0,pos))(method)(end_point)(body_size)(a)(b).exec();
+                r = W.exec_prepared("dml_queue_post",uri.substr(0,pos),method,end_point,body_size,a,b);
             } else {
-                r = W.prepared("dml_queue_get")(uri.substr(0,pos))(method)(end_point).exec();
+                r = W.exec_prepared("dml_queue_get",uri.substr(0,pos),method,end_point);
             }
             if (r.affected_rows() != 1)
                 return false;
@@ -24,7 +24,7 @@ namespace http {
             ref = pqxx::binarystring(r[0]["Ссылка"]);
             unsigned n = 0;
             for (auto &e : headers)
-                pqxx::result r = W.prepared("dml_headers")(ref)(n)(++n)(e.name)(e.value).exec();
+                pqxx::result r = W.exec_prepared("dml_headers",ref,n,++n,e.name,e.value);
 
             std::string name, val;
             bool is_val=false;
@@ -33,7 +33,7 @@ namespace http {
                 if (c == '=')
                     is_val = true;
                 else if (c == '&') {
-                    pqxx::result r = W.prepared("dml_params")(ref)(n)(++n)(name)(val).exec();
+                    pqxx::result r = W.exec_prepared("dml_params",ref,n,++n,name,val);
                     name = val = "";
                     is_val=false;
                 } else if (is_val)
@@ -42,7 +42,7 @@ namespace http {
                     name.push_back(c);
             }
             if (name != "")
-                pqxx::result r = W.prepared("dml_params")(ref)(n)(++n)(name)(val).exec();
+                pqxx::result r = W.exec_prepared("dml_params",ref,n,++n,name,val);
 
             W.commit();
             return true;

@@ -57,22 +57,20 @@ std::string Context::get_connection_string() const {
 }
 DB * prepare(DB * p_db, const Context &cont) {
     for (const auto &x : cont.prepared_sql) {
-        p_db->cn.unprepare(x.first);
-        p_db->cn.prepare(x.first,x.second);
+        p_db->p_cn->unprepare(x.first);
+        p_db->p_cn->prepare(x.first,x.second);
     }
 
     return p_db;
 }
-DB::DB(const std::string &str_connection, const Context &cont) : cn(str_connection), p_W(new pqxx::work(cn)) {
+DB::DB(const std::string &str_connection, const Context &cont) : p_cn(new pqxx::connection(str_connection)), p_W(new pqxx::work(*p_cn)) {
     prepare(this,cont);
 }
 DB::~DB() {
     if (p_W) {
         commit();
-        delete p_W;
+        delete p_W, p_cn;
     }
-
-    cn.disconnect();
 }
 void DB::commit() {
     p_W->commit();
@@ -88,10 +86,11 @@ DB & Context::get_con() {
     return *activate_con(pool.front());
 }
 DB * Context::activate_con(DB * p_db) {
-    if (!p_db->cn.is_open()) {
-        p_db->cn.activate();
+    if (!p_db->p_cn->is_open()) {
+        delete p_db->p_cn;
+        p_db->p_cn = new pqxx::connection(get_connection_string());
         if (!p_db->p_W)
-            p_db->p_W = new pqxx::work(p_db->cn);
+            p_db->p_W = new pqxx::work(*p_db->p_cn);
 
         prepare(p_db,*this);
     }
@@ -177,10 +176,10 @@ OuterType::OuterType(pqxx::binarystring outer_ref, Context & cont) : RowTableTyp
              join )") + rtt_idobj.table + R"( as i on(i.Ссылка = t.ИдентификаторСправочникаНСИ)
         where t. Ссылка = $1
         limit 1)";
-        db.cn.prepare("ВнешнийСправочник", cont.prepared_sql["ВнешнийСправочник"]);
+        db.p_cn->prepare("ВнешнийСправочник", cont.prepared_sql["ВнешнийСправочник"]);
     }
 
-    pqxx::result rs = db.p_W->prepared("ВнешнийСправочник")(outer_ref).exec();
+    pqxx::result rs = db.p_W->exec_prepared("ВнешнийСправочник",outer_ref);
     outer_code  = rs[0]["Код"].c_str();
     outer_name  = rs[0]["Наименование"].c_str(),
     name        = rs[0]["Имя"].c_str();
@@ -224,9 +223,9 @@ RefType::RefType(pqxx::binarystring outer_ref, Context &cont): OuterType(outer_r
         where t.Ссылка = $1
         )";
         cont.prepared_sql["restrict"] = sql;
-        db.cn.prepare("restrict", sql);
+        db.p_cn->prepare("restrict", sql);
     }
-    pqxx::result rs = db.p_W->prepared("restrict")(outer_ref).exec();
+    pqxx::result rs = db.p_W->exec_prepared("restrict",outer_ref);
     for (const auto &row : rs)
         if (row[1].as<int>() == 0)
             restrict.push_back(row[0].c_str());
@@ -269,9 +268,9 @@ std::vector<pqxx::binarystring> RefType::get_changes() const {
         std::string sql("select t.Ссылка from nОбменНСИid as n join  ");
         sql.append(table_change).append(" as t on(t.node_Вид=E'\\\\x0000002E' and t.node=n.Ссылка) where n.ВнешнийСправочник = $1");
         cont.prepared_sql[name + "changes"] = sql;
-        db.cn.prepare(name + "changes", sql);
+        db.p_cn->prepare(name + "changes", sql);
     }
-    pqxx::result rs = db.p_W->prepared(name+"changes")(outer_ref).exec();
+    pqxx::result rs = db.p_W->exec_prepared(name+"changes",outer_ref);
     std::vector<pqxx::binarystring> v;
     for (const auto &row : rs)
         v.push_back(pqxx::binarystring(row[0]));
@@ -309,7 +308,7 @@ void RefType::mkXMLs() const {
         sout.clear();
     }
 }
-void field(const pqxx::tuple &row,
+void field(const pqxx::row &row,
            const std::string &vid,
            const std::string &field,
            std::ostringstream &sout,
@@ -349,10 +348,10 @@ void field(const pqxx::tuple &row,
         if (cont.prepared_sql.find(rtt.table+"_short") == cont.prepared_sql.end()) {
             std::string sql("select t.");
             sql.append(rtt.get_field_code(cont)+" as Код, t.").append(rtt.get_field_name(cont) + " as Наименование from ").append(rtt.table).append(" as t where t.Ссылка = $1 limit 1");
-            db.cn.prepare(rtt.table+"_short", sql);
+            db.p_cn->prepare(rtt.table+"_short", sql);
             cont.prepared_sql[rtt.table+"_short"]=sql;
         }
-        pqxx::result rs = db.p_W->prepared(rtt.table+"_short")(pqxx::binarystring(row[field])).exec();
+        pqxx::result rs = db.p_W->exec_prepared(rtt.table+"_short",pqxx::binarystring(row[field]));
         std::string GID = rs.affected_rows() ? rs[0]["Код"].c_str() : "",
                     name= rs.affected_rows() ? rs[0]["Наименование"].c_str() : "";
 
@@ -375,7 +374,7 @@ void field(const pqxx::tuple &row,
                                                        and t.Владелец = $1)
                 where i.Имя = $2 )");
 
-                db.cn.prepare("table_to_outer", sql);
+                db.p_cn->prepare("table_to_outer", sql);
                 cont.prepared_sql["table_to_outer"] = sql;
             }
             sout << "\t\t\t\t\t<Type>reference</Type>\n"
@@ -384,7 +383,7 @@ void field(const pqxx::tuple &row,
                  << "\t\t\t\t\t\t\t<GID>" << GID << "</GID>\n"
                  << "\t\t\t\t\t\t\t<tableName>" << rtt.name.substr(1, rtt.name.size() - 3) << "</tableName>\n";
 
-            rs = db.p_W->prepared("table_to_outer")(system_ref)(rtt.name.substr(1, rtt.name.size() - 3)).exec();
+            rs = db.p_W->exec_prepared("table_to_outer",system_ref,rtt.name.substr(1, rtt.name.size() - 3));
 
             if (rs.affected_rows()) {
                 std::vector<std::string> lids;
@@ -392,8 +391,7 @@ void field(const pqxx::tuple &row,
                         outer_name = rs[0]["Наименование"].c_str();
 
 
-                pqxx::result rs2 = db.p_W->prepared(LIDS)(rtt.ref)(pqxx::binarystring(row[field]))(
-                        pqxx::binarystring(rs[0]["Ссылка"])).exec();
+                pqxx::result rs2 = db.p_W->exec_prepared(LIDS,rtt.ref,pqxx::binarystring(row[field]),pqxx::binarystring(rs[0]["Ссылка"]));
                 for (const auto &rl : rs2) // lids
                     lids.push_back(rl[0].c_str());
 
@@ -423,7 +421,7 @@ void RefType::item(const pqxx::binarystring &item_ref, std::ostringstream &sout)
     // внешний спровочник
     std::vector<std::string> lids;
     {
-        pqxx::result rs = db.p_W->prepared(LIDS)(ref)(item_ref)(outer_ref).exec();
+        pqxx::result rs = db.p_W->exec_prepared(LIDS,ref,item_ref,outer_ref);
         for (const auto &rl : rs) // lids
             lids.push_back(rl[0].c_str());
     }
@@ -432,10 +430,10 @@ void RefType::item(const pqxx::binarystring &item_ref, std::ostringstream &sout)
         std::string sql("select t.* from ");
         sql.append(table).append(R"( as t where t.Ссылка = $1 and t.СтатусЗаписи = E'\\x80BF00505601131511E66F56BA579BBF' /*Эталон*/ limit 1 )");
         cont.prepared_sql[name] = sql;
-        db.cn.prepare(name, sql);
+        db.p_cn->prepare(name, sql);
     }
 
-    pqxx::result rs = db.p_W->prepared(name)(item_ref).exec();
+    pqxx::result rs = db.p_W->exec_prepared(name,item_ref);
     if (rs.affected_rows() == 0) return;
 
     // новый элемент
@@ -509,9 +507,9 @@ void RefType::item(const pqxx::binarystring &item_ref, std::ostringstream &sout)
              join rЭлементыКлассификаторовid as e on(e.Ссылка=t.ЭлементКлассификатора)
         where t.Ссылка = $1 )");
         cont.prepared_sql[name+"_classifiers"] = sql;
-        db.cn.prepare(name+"_classifiers", sql);
+        db.p_cn->prepare(name+"_classifiers", sql);
     }
-    rs = db.p_W->prepared(name+"_classifiers")(item_ref).exec();
+    rs = db.p_W->exec_prepared(name+"_classifiers",item_ref);
     for (const auto &row:rs) {
         sout << "\t\t\t<Property>\n"
              << "\t\t\t\t<PropertyType>classifier</PropertyType>\n"
@@ -545,9 +543,9 @@ void RefType::item(const pqxx::binarystring &item_ref, std::ostringstream &sout)
              join hАтрибутыid as h on(h.Ссылка=t.Атрибут)
         where t.Ссылка = $1 )");
         cont.prepared_sql[name+"_attributes"] = sql;
-        db.cn.prepare(name+"_attributes", sql);
+        db.p_cn->prepare(name+"_attributes", sql);
     }
-    rs = db.p_W->prepared(name+"_attributes")(item_ref).exec();
+    rs = db.p_W->exec_prepared(name+"_attributes",item_ref);
     for (const auto &row : rs) {
         if (restricted_attrs.find(row["Ссылка"].c_str()) != restricted_attrs.end())
             continue;
@@ -602,9 +600,9 @@ void RefType::item(const pqxx::binarystring &item_ref, std::ostringstream &sout)
             std::string sql("select * from ");
             sql.append(tab_name + " as t where t.Ссылка = $1");
             cont.prepared_sql[tab_name] = sql;
-            db.cn.prepare(tab_name, sql);
+            db.p_cn->prepare(tab_name, sql);
         }
-        rs = db.p_W->prepared(tab_name)(item_ref).exec();
+        rs = db.p_W->exec_prepared(tab_name,item_ref);
         if (rs.affected_rows()) {
             sout << "\t\t\t<Table>\n"
                  << "\t\t\t\t<Name>" << e.first << "</Name>\n";

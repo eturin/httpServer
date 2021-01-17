@@ -54,7 +54,6 @@ int main(int argc, char* argv[]) {
             std::cout << "Can't open database" << std::endl;
             return 1;
         }
-        C.disconnect ();
     } catch (const std::exception &e) {
         std::cerr << e.what() << std::endl;
         return 1;

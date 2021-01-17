@@ -5,7 +5,6 @@ namespace http {
         Context::Context() : uuid_num(),conns() {}
 
         bool Context::prepare(pqxx::connection *conn) {
-            conn->activate();
             if (conn->is_open()) {
                 conn->prepare("dml_queue_post", R"(
                 --запрос
@@ -63,7 +62,7 @@ namespace http {
 
         Context::~Context() {
             for (pqxx::connection * e : conns) {
-                if (e->is_open()) e->disconnect();
+                if (e->is_open()) e->close();
                 delete e;
             }
         }

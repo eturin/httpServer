@@ -15,7 +15,7 @@ struct Context;
 struct DB {
     DB(const std::string & str_connection, const Context &cont);
     ~DB();
-    pqxx::connection cn;
+    pqxx::connection *p_cn;
     pqxx::work       *p_W;
     void commit();
 };
