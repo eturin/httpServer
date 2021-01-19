@@ -25,29 +25,8 @@ int main(int argc, char* argv[]) {
             std::cout << "Opened database successfully: " << C.dbname() <<'\n'<< std::endl;
             pqxx::work W(C);
             W.exec(R"(
-            --запрос
-            create table IF NOT EXISTS queue(
-                   id serial PRIMARY KEY,
-                   method    VARCHAR(100) not null,
-                   end_point VARCHAR(100) not null,
-                   uri       VARCHAR(500) not null,
-                   body      bytea,
-                   created   TIMESTAMP NOT NULL);
-            --заголовки запроса
-            create table IF NOT EXISTS queue_headers(
-                   id serial PRIMARY KEY,
-                   queue_id integer,
-                   name text NOT NULL,
-                   value text,
-                   FOREIGN KEY (queue_id) REFERENCES  queue (id) ON DELETE CASCADE);
-            --обработчики
-            create table IF NOT EXISTS handlers(
-                   id serial PRIMARY KEY,
-                   method    VARCHAR(100) not null,
-                   end_point VARCHAR(100) not null,
-                   is_sync   boolean,
-                   path      VARCHAR(500) not null
-                   )
+            CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+            CREATE EXTENSION IF NOT EXISTS "pageinspect";
             )");
             W.commit();
         } else {

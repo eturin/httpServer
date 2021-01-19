@@ -10,11 +10,11 @@
 #define BUF_SIZE 50
 
 int main(int argc, char* argv[]) {
-    const char *db_host      = ENV("DB_HOST","127.0.0.1"),
-               *db_port      = ENV("DB_PORT","5432"),
-               *db_name      = ENV("DB_NAME","mdm"),
-               *db_user      = ENV("DB_USER","postgres"),
-               *db_user_pass = ENV("DB_USER_PASS","123");
+    const char *db_host      = ENV("DB_HOST"     ,"192.168.52.80"),
+               *db_port      = ENV("DB_PORT"     ,"5432"         ),
+               *db_name      = ENV("DB_NAME"     ,"NSI"          ),
+               *db_user      = ENV("DB_USER"     ,"user1c"       ),
+               *db_user_pass = ENV("DB_USER_PASS","sGLaVj4PUw"   );
     std::string connection_str =std::string(R"(
             dbname   = )")+ db_name      + R"(
             user     = )" + db_user      + R"(

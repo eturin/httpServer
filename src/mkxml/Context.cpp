@@ -47,17 +47,17 @@ std::string Context::get_connection_string() const {
                *db_user = std::getenv("DB_USER"),
                *db_user_pass = std::getenv("DB_USER_PASS");
     std::string con_str;
-    con_str.append("dbname    = ").append(db_name ? db_name : static_cast<const char *>("mdm"))
-           .append(" user     = ").append(db_user ? db_user : static_cast<const char *>("postgres"))
-           .append(" password = ").append(db_user_pass ? db_user_pass : static_cast<const char *>("123"))
-           .append(" hostaddr = ").append(db_host ? db_host : static_cast<const char *>("127.0.0.1"))
-           .append(" port     = ").append(db_port ? db_port : static_cast<const char *>("5432"));
+    con_str.append("dbname    = ").append(db_name      ? db_name : static_cast<const char *>("NSI")            )
+           .append(" user     = ").append(db_user      ? db_user : static_cast<const char *>("user1c")         )
+           .append(" password = ").append(db_user_pass ? db_user_pass : static_cast<const char *>("sGLaVj4PUw"))
+           .append(" hostaddr = ").append(db_host      ? db_host : static_cast<const char *>("192.168.52.80")  )
+           .append(" port     = ").append(db_port   ? db_port : static_cast<const char *>("5432")           );
 
     return con_str;
 }
 DB * prepare(DB * p_db, const Context &cont) {
     for (const auto &x : cont.prepared_sql) {
-        p_db->p_cn->unprepare(x.first);
+        //p_db->p_cn->unprepare(x.first);
         p_db->p_cn->prepare(x.first,x.second);
     }
 
@@ -75,7 +75,7 @@ DB::~DB() {
 void DB::commit() {
     p_W->commit();
     delete p_W;
-    p_W = nullptr;
+    p_W = new pqxx::work(*p_cn);
 }
 DB & Context::get_con() {
     for (auto & p_db : pool) {
@@ -276,27 +276,92 @@ std::vector<pqxx::binarystring> RefType::get_changes() const {
         v.push_back(pqxx::binarystring(row[0]));
     return v;
 }
-void RefType::send(const std::ostringstream & sout) const {
-    std::cout << sout.str() << "\n\n";
+void RefType::send(const std::ostringstream &sout,
+                   const std::vector<pqxx::binarystring> &vref,
+                   const std::string &message_date,
+                   const pqxx::binarystring &message_ref) const {
+    DB &db=cont.get_con();
+
+    for (const auto &x : vref)
+        db.p_W->exec_prepared("sСеансыОбменаid",message_date,message_ref,outer_ref,ref,x);
+
+    db.p_W->exec_prepared("sИсторияОбменаid",message_date,message_ref,sout.str(),'ok');
+    db.commit();
+
 }
 void RefType::mkXMLs() const {
     unsigned cnt=0;
+
+    DB &db=cont.get_con();
+    if (cont.prepared_sql.find("спрСеансыОбмена") == cont.prepared_sql.end()) {
+        std::string sql(R"(
+        select pg_advisory_xact_lock(hashtext('insert_спрСеансыОбмена')::bigint);
+        )");
+        cont.prepared_sql["insert_спрСеансыОбмена"] = sql;
+        db.p_cn->prepare("insert_спрСеансыОбмена", sql);
+
+        sql = R"(
+        insert into rСеансыОбменаid (ИмяПредопределенныхДанных             ,Ссылка                                                ,Владелец                              ,Код                                             ,Дата               ,ПометкаУдаления,Комментарий,ЭтоОшибка,СеансЗавершен,Направление                           ,ВнешнийСправочник)
+                             values (E'\\x00000000000000000000000000000000',decode(replace(uuid_generate_v4()::text,'-',''),'hex'),E'\\x80d4005056ab252711e92084be4eff39',(select max(Код)+1 as Code from rСеансыОбменаid),now()::timestamp(0),false          ,''         ,false    ,false        ,E'\\xA0C2944C1269CD5445A9BA93230574B0',   $1            )
+        returning Ссылка,Дата,Код;
+        )";
+        cont.prepared_sql["спрСеансыОбмена"] = sql;
+        db.p_cn->prepare("спрСеансыОбмена", sql);
+
+        sql = R"(
+        insert into sСеансыОбменаid (Период,СеансОбмена,ВнешнийСправочник,СсылкаНаСправочник_Тип,СсылкаНаСправочник_Вид,СсылкаНаСправочник,Результат,Отправление,Принятие                    ,ОписаниеОшибки)
+                             values ($1    , $2        , $3              ,E'\\x08'              , $4                   , $5               ,false    ,  $1       ,'0001-01-01 00:00:00.000000',''            )
+        )";
+        cont.prepared_sql["sСеансыОбменаid"] = sql;
+        db.p_cn->prepare("sСеансыОбменаid", sql);
+
+        sql = R"(
+        insert into sИсторияОбменаid(Период,ИнтеграционнаяКомпонента              ,СеансОбмена,НаправлениеОбмена                     ,УИД                               ,ТекстЗапроса,ТекстОтвета,АдресВызова)
+                              values($1    ,E'\\x80d4005056ab252711e92084be4eff39',$2         ,E'\\xA0C2944C1269CD5445A9BA93230574B0',uuid_generate_v4()::text::mvarchar,   $3       ,  $4       ,'mkXML'    )
+
+        )";
+        cont.prepared_sql["sИсторияОбменаid"] = sql;
+        db.p_cn->prepare("sИсторияОбменаid", sql);
+
+        sql = R"(
+        select t.НомерВерсии , to_char(t.НачалоПериода, 'YYYY-MM-DD')
+        from sВерсииОбъектовid as t
+        where t.Объект_Тип = E'\\x08' and t.Объект_Вид = $1 and t.Объект = $2
+              and t.НачалоПериода <= now() and (t.ОкончаниеПериода = '0001-01-01 00:00:00.000000' or now() <= t.ОкончаниеПериода);
+        )";
+        cont.prepared_sql["_sВерсииОбъектовid_"] = sql;
+        db.p_cn->prepare("_sВерсииОбъектовid_", sql);
+    }
+
+    std::string message_id, message_date;
+    pqxx::binarystring message_ref("");
+
     std::ostringstream sout;
+    std::vector<pqxx::binarystring> vrefs;
     for (const auto &ref : get_changes()) {
         if (0 == cnt % cont.max_items) {
             if (cnt) {
                 sout << "\t</Items>\n"
                      << "</Message>\n";
-                send(sout);
+                send(sout,vrefs,message_date,message_ref);
                 sout.clear();
+                vrefs.clear();
             }
+            db.p_W->exec_prepared("insert_спрСеансыОбмена");
+            pqxx::result rs = db.p_W->exec_prepared("спрСеансыОбмена",outer_ref);
+            message_id   = rs[0][2].c_str(),
+            message_date = rs[0][1].c_str();
+            message_ref  = pqxx::binarystring(rs[0][0]);
+            db.commit();
+
             sout << "<?xml version='1.0' encoding='UTF-8'?>\n"
                  << "<Message xmlns='http://www.lmsoft.ru/mdm/exchange'\n"
                  << "         xmlns:xs='http://www.w3.org/2001/XMLSchema'\n"
                  << "         xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'>\n"
-                 << "\t<MessageID>" << 4 << "</MessageID>\n"
+                 << "\t<MessageID>" << message_id << "</MessageID>\n"
                  << "\t<Items>\n";
         }
+        vrefs.push_back(ref);
         item(ref, sout);
         ++cnt;
     }
@@ -304,8 +369,9 @@ void RefType::mkXMLs() const {
     if (cnt) {
         sout << "\t</Items>\n"
              << "</Message>\n";
-        send(sout);
+        send(sout,vrefs,message_date,message_ref);
         sout.clear();
+        vrefs.clear();
     }
 }
 void field(const pqxx::row &row,
@@ -356,10 +422,12 @@ void field(const pqxx::row &row,
                     name= rs.affected_rows() ? rs[0]["Наименование"].c_str() : "";
 
         if (vid == "rЗначенияАтрибутовid") {
-            sout << "\t\t\t\t\t<Type>simple</Type>\n"
+            sout << "\t\t\t\t\t<Type>enum</Type>\n"
                  << "\t\t\t\t\t<Value>\n"
                  << "\t\t\t\t\t\t<valueString>"<< name << "</valueString>\n"
-                 << "\t\t\t\t\t</Value>\n";
+                 << "\t\t\t\t\t</Value>\n"
+                 << "\t\t\t\t\t<Name/>\n"
+                 << "\t\t\t\t\t<TableName>ЗначенияАтрибутов</TableName>\n";
         }else {
             if (cont.prepared_sql.find("table_to_outer") == cont.prepared_sql.end()) {
                 std::string sql(R"(
@@ -379,12 +447,12 @@ void field(const pqxx::row &row,
             }
             sout << "\t\t\t\t\t<Type>reference</Type>\n"
                  << "\t\t\t\t\t<Value>\n"
-                 << "\t\t\t\t\t\t<valueRef>\n"
-                 << "\t\t\t\t\t\t\t<GID>" << GID << "</GID>\n"
-                 << "\t\t\t\t\t\t\t<tableName>" << rtt.name.substr(1, rtt.name.size() - 3) << "</tableName>\n";
+                 << "\t\t\t\t\t\t<valueRef>\n";
+
+            if (!GID.empty())
+                sout << "\t\t\t\t\t\t\t<GID>" << GID << "</GID>\n";
 
             rs = db.p_W->exec_prepared("table_to_outer",system_ref,rtt.name.substr(1, rtt.name.size() - 3));
-
             if (rs.affected_rows()) {
                 std::vector<std::string> lids;
                 std::string outer_code = rs[0]["Код"].c_str(),
@@ -400,18 +468,26 @@ void field(const pqxx::row &row,
                      << "\t\t\t\t\t\t\t\t<ExtCatalog>\n"
                      << "\t\t\t\t\t\t\t\t\t<id>" << outer_code << "</id>\n"
                      << "\t\t\t\t\t\t\t\t\t<name>" << outer_name << "</name>\n";
-                for (auto &x :lids)
-                    sout << "\t\t\t\t\t\t\t\t\t<LIDs>\n"
-                         << "\t\t\t\t\t\t\t\t\t\t<LID>" << x << "</LID>\n"
-                         << "\t\t\t\t\t\t\t\t\t</LIDs>\n";
+                if (lids.size()) {
+                    sout << "\t\t\t\t\t\t\t\t\t<LIDs>\n";
+                    for (auto &x :lids)
+                        sout << "\t\t\t\t\t\t\t\t\t\t<LID>" << x << "</LID>\n";
+                    sout << "\t\t\t\t\t\t\t\t\t</LIDs>\n";
+                } else if (!GID.empty())
+                    sout << "\t\t\t\t\t\t\t\t\t\t<LIDs/>\n";
 
                 sout << "\t\t\t\t\t\t\t\t</ExtCatalog>\n"
                      << "\t\t\t\t\t\t\t</refLIDs>\n";
             } else
-                sout << "\t\t\t\t\t\t\t<refLIDs/>\n";
+                sout << "\t\t\t\t\t\t\t<tableName>" << rtt.name.substr(1, rtt.name.size() - 3) << "</tableName>\n"
+                     << "\t\t\t\t\t\t\t<refLIDs/>\n";
 
-            sout << "\t\t\t\t\t\t\t<name>" << name << "</name>\n"
-                 << "\t\t\t\t\t\t</valueRef>\n"
+            if (name.empty())
+                sout << "\t\t\t\t\t\t\t<name/>\n";
+            else
+                sout << "\t\t\t\t\t\t\t<name>" << name << "</name>\n";
+
+            sout << "\t\t\t\t\t\t</valueRef>\n"
                  << "\t\t\t\t\t</Value>\n";
         }
     }
@@ -661,7 +737,15 @@ void RefType::item(const pqxx::binarystring &item_ref, std::ostringstream &sout)
             }
         }
     }
-    sout << "\t\t\t<IdStatus>000000002</IdStatus>\n"
-         << "\t\t</Item>\n";
+
+    sout << "\t\t\t<IdStatus>000000002</IdStatus>\n";
+    rs = db.p_W->exec_prepared("_sВерсииОбъектовid_",ref,item_ref);
+    if (rs.affected_rows())
+        sout << "\t\t\t<Version>\n"
+             << "\t\t\t\t<Id>" << rs[0][0].c_str() << "</Id>\n"
+             << "\t\t\t\t<Start>" << rs[0][1].c_str() << "</Start>\n"
+             << "\t\t\t\t<End xsi:nil='true'/>\n"
+             << "\t\t\t</Version>\n";
+    sout << "\t\t</Item>\n";
 }
 

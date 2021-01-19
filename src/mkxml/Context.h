@@ -91,7 +91,10 @@ struct Field {
 struct RefType: public OuterType {
     RefType(pqxx::binarystring outer_id, Context & cont);
     std::vector<pqxx::binarystring> get_changes() const;
-    void send(const std::ostringstream &sout) const;
+    void send(const std::ostringstream &sout,
+              const std::vector<pqxx::binarystring> &vref,
+              const std::string &message_date,
+              const pqxx::binarystring &message_ref) const;
     void mkXMLs() const;
     void item(const pqxx::binarystring &ref, std::ostringstream &sout) const;
     std::map<std::string, std::vector<Field> > tables;

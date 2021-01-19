@@ -27,7 +27,7 @@ add_executable(httpServer
         src/server/context.hpp
         src/server/context.cpp
         )
-target_include_directories(httpServer PRIVATE ${Boost_INCLUDE_DIRS})
+#target_include_directories(httpServer PRIVATE ${Boost_INCLUDE_DIRS})
 target_link_libraries(httpServer ${Boost_LIBRARIES})
 target_link_libraries(httpServer pqxx)
 target_link_libraries(httpServer pq)
