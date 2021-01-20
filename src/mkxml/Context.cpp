@@ -551,6 +551,10 @@ void RefType::item(const pqxx::binarystring &item_ref, std::ostringstream &sout)
               is_set = true;
           }
           if (is_set) p_vid  = &tmp;
+        } else if (x.vid.find("ХранилищеЗначения")!=std::string::npos) {
+            tmp = "Строка";
+            p_field=&x.field_str;
+            is_set = true;
         }
         if (!is_set && x.vid.find("Вид")!=std::string::npos) {
             p_vid  =&cont.mTablesType[rs[0][x.field_vid].c_str()].table;
