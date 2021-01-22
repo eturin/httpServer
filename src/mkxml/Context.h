@@ -99,9 +99,9 @@ struct Field {
 
 struct RefType: public OuterType {
     RefType(pqxx::binarystring outer_id, Context & cont);
-    std::vector<pqxx::binarystring> get_changes() const;
+    std::vector<std::pair<pqxx::binarystring, unsigned> > get_changes() const;
     void send(const std::ostringstream &sout,
-              const std::vector<pqxx::binarystring> &vref,
+              const std::vector<std::pair<pqxx::binarystring, unsigned> > &vref,
               const std::string &message_date,
               const pqxx::binarystring &message_ref,
               const std::string &message_id,
@@ -112,7 +112,8 @@ struct RefType: public OuterType {
               const std::string &target,
               const std::string &user,
               const std::string &pass,
-              const pqxx::binarystring &integ_ref) const;
+              const pqxx::binarystring &integ_ref,
+              const pqxx::binarystring &node_ref) const;
     std::size_t mkXMLs(bool isSSL,
                         bool isMultipart,
                         const std::string &host,
@@ -120,7 +121,8 @@ struct RefType: public OuterType {
                         const std::string &target,
                         const std::string &user,
                         const std::string &pass,
-                        const pqxx::binarystring &integ_ref) const;
+                        const pqxx::binarystring &integ_ref,
+                       const pqxx::binarystring &node_ref) const;
     void item(const pqxx::binarystring &ref, std::ostringstream &sout) const;
     std::map<std::string, std::vector<Field> > tables;
     std::map<std::string, std::string>         restricted_attrs;

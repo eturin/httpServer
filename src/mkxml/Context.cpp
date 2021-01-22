@@ -273,18 +273,18 @@ RefType::RefType(pqxx::binarystring outer_ref,
     }
 
 }
-std::vector<pqxx::binarystring> RefType::get_changes() const {
+std::vector<std::pair<pqxx::binarystring, unsigned> > RefType::get_changes() const {
     DB &db=cont.get_con();
     if (cont.prepared_sql.find(name+"changes") == cont.prepared_sql.end()) {
-        std::string sql("select t.Ссылка from nОбменНСИid as n join  ");
+        std::string sql("select t.Ссылка, t.НомерСообщения  from nОбменНСИid as n join  ");
         sql.append(table_change).append(" as t on(t.node_Вид=E'\\\\x0000002E' and t.node=n.Ссылка) where n.ВнешнийСправочник = $1");
         cont.prepared_sql[name + "changes"] = sql;
         db.p_cn->prepare(name + "changes", sql);
     }
     pqxx::result rs = db.p_W->exec_prepared(name+"changes",outer_ref);
-    std::vector<pqxx::binarystring> v;
+    std::vector<std::pair<pqxx::binarystring, unsigned> > v;
     for (const auto &row : rs)
-        v.push_back(pqxx::binarystring(row[0]));
+        v.push_back({pqxx::binarystring(row[0]), row[1].as<unsigned>()});
     return v;
 }
 
@@ -455,7 +455,7 @@ std::vector<char> base64_decode(std::string const& encoded_string) {
     return ret;
 }
 void RefType::send(const std::ostringstream &sout,
-                   const std::vector<pqxx::binarystring> &vref,
+                   const std::vector<std::pair<pqxx::binarystring, unsigned> > &vref,
                    const std::string &message_date,
                    const pqxx::binarystring &message_ref,
                    const std::string &message_id,
@@ -466,7 +466,8 @@ void RefType::send(const std::ostringstream &sout,
                    const std::string &target,
                    const std::string &user,
                    const std::string &pass,
-                   const pqxx::binarystring &integ_ref) const {
+                   const pqxx::binarystring &integ_ref,
+                   const pqxx::binarystring &node_ref) const {
 
     std::stringstream ss;
 
@@ -589,8 +590,10 @@ void RefType::send(const std::ostringstream &sout,
 
     DB &db=cont.get_con();
 
-    for (const auto &x : vref)
-        db.p_W->exec_prepared("sСеансыОбменаid",message_date,message_ref,outer_ref,ref,x);
+    for (const auto &x : vref) {
+        db.p_W->exec_prepared("sСеансыОбменаid", message_date, message_ref, outer_ref, ref, x.first);
+        db.p_W->exec_prepared(table_change+"_update", std::stoul(message_id), node_ref, x.first);
+    }
 
     db.p_W->exec_prepared("sИсторияОбменаid",message_date,integ_ref,message_ref,sout.str(),ss.str());
     db.commit();
@@ -603,7 +606,8 @@ std::size_t RefType::mkXMLs(bool isSSL,
                      const std::string &target,
                      const std::string &user,
                      const std::string &pwd,
-                     const pqxx::binarystring &integ_ref) const {
+                     const pqxx::binarystring &integ_ref,
+                     const pqxx::binarystring &node_ref) const {
     std::size_t cnt=0;
 
     DB &db=cont.get_con();
@@ -651,8 +655,8 @@ std::size_t RefType::mkXMLs(bool isSSL,
     pqxx::binarystring message_ref("");
 
     std::ostringstream sout;
-    std::vector<pqxx::binarystring> vrefs;
-    for (const auto &ref : get_changes()) {
+    std::vector<std::pair<pqxx::binarystring, unsigned> > vrefs;
+    for (const auto &pair : get_changes()) {
         if (0 == cnt % cont.max_items) {
             if (cnt) {
                 sout << "\t</Items>\n"
@@ -669,7 +673,8 @@ std::size_t RefType::mkXMLs(bool isSSL,
                      target,
                      user,
                      pwd,
-                     integ_ref);
+                     integ_ref,
+                     node_ref);
                 sout.clear();
                 vrefs.clear();
             }
@@ -687,7 +692,7 @@ std::size_t RefType::mkXMLs(bool isSSL,
                  << "\t<MessageID>" << message_id << "</MessageID>\n"
                  << "\t<Items>\n";
         }
-        vrefs.push_back(ref);
+        vrefs.push_back(pair);
         item(ref, sout);
         ++cnt;
     }
@@ -707,7 +712,8 @@ std::size_t RefType::mkXMLs(bool isSSL,
              target,
              user,
              pwd,
-             integ_ref);
+             integ_ref,
+             node_ref);
         sout.clear();
         vrefs.clear();
     }
@@ -847,6 +853,11 @@ void RefType::item(const pqxx::binarystring &item_ref, std::ostringstream &sout)
         sql.append(table).append(R"( as t where t.Ссылка = $1 and t.СтатусЗаписи = E'\\x80BF00505601131511E66F56BA579BBF' /*Эталон*/ limit 1 )");
         cont.prepared_sql[name] = sql;
         db.p_cn->prepare(name, sql);
+
+        std::string dml("update ");
+        dml.append(table_change).append(R"( set НомерСообщения = $1 where node_Вид = E'\\x0000002E' /*обмен НСИ*/ and  node = $2 and Ссылка = $3 and НомерСообщения < $1 )");
+        cont.prepared_sql[table_change+"_update"] = dml;
+        db.p_cn->prepare(table_change+"_update", dml);
     }
 
     pqxx::result rs = db.p_W->exec_prepared(name,item_ref);

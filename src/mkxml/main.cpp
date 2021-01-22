@@ -18,7 +18,8 @@ int main() {
             i.urlОтправкаДанных,
             i.Логин,
             i.Пароль,
-            i.РазмерПорции
+            i.РазмерПорции,
+            n.Ссылка as Узел
         from )"+obj.table +R"( as t
             join rИнтеграционныеКомпонентыid     as i on(i.Ссылка = t.ИнтеграционнаяКомпонента
                                                          and i.ТипИнтеграционнойКомпоненты = E'\\xB9BC00E6850DF7F34528F7A8B2890A1F' /* rest */)
@@ -42,6 +43,7 @@ int main() {
         for (const auto &row : rs) {
             cont.max_items = row["РазмерПорции"].as<unsigned>();
             cont.outer_ref = pqxx::binarystring(row["ВнешнийСправочник"]);
+            pqxx::binarystring node_ref(row["Узел"]);
             std::string str_outer_ref;
             RefType rt = RefType(cont.outer_ref, cont);
             std::cout << row["Наименование"].c_str() << " ["
@@ -52,7 +54,8 @@ int main() {
                                   row["urlОтправкаДанных"].c_str(),
                                   row["Логин"].c_str(),
                                   row["Пароль"].c_str(),
-                                  integr_ref) << "]\n";
+                                  integr_ref,
+                                  node_ref) << "]\n";
         }
     }
 
