@@ -9,6 +9,7 @@ int main() {
         RowTableType obj("sИнтеграционныеКомпонентыВнешнегоСправочникаid",cont);
         std::string sql = std::string(R"(
         select
+            v.Наименование,
             t.ВнешнийСправочник,
             i.ЗащищенноеСоединение,
             i.multipart,
@@ -16,7 +17,8 @@ int main() {
             i.Порт,
             i.urlОтправкаДанных,
             i.Логин,
-            i.Пароль
+            i.Пароль,
+            i.РазмерПорции
         from )"+obj.table +R"( as t
             join rИнтеграционныеКомпонентыid     as i on(i.Ссылка = t.ИнтеграционнаяКомпонента
                                                          and i.ТипИнтеграционнойКомпоненты = E'\\xB9BC00E6850DF7F34528F7A8B2890A1F' /* rest */)
@@ -38,17 +40,19 @@ int main() {
         pqxx::result rs = db.p_W->exec_prepared("get_ИнтеграционныеКомпоненты",integr_ref);
         int n = rs.affected_rows();
         for (const auto &row : rs) {
+            cont.max_items = row["РазмерПорции"].as<unsigned>();
             cont.outer_ref = pqxx::binarystring(row["ВнешнийСправочник"]);
             std::string str_outer_ref;
             RefType rt = RefType(cont.outer_ref, cont);
-            rt.mkXMLs(row["ЗащищенноеСоединение"].c_str()[0] == 't',
-                      row["multipart"].c_str()[0] == 't',
-                      row["Сервер"].c_str(),
-                      row["Порт"].c_str(),
-                      row["urlОтправкаДанных"].c_str(),
-                      row["Логин"].c_str(),
-                      row["Пароль"].c_str(),
-                      integr_ref);
+            std::cout << row["Наименование"].c_str() << " ["
+                      << rt.mkXMLs(row["ЗащищенноеСоединение"].c_str()[0] == 't',
+                                  row["multipart"].c_str()[0] == 't',
+                                  row["Сервер"].c_str(),
+                                  row["Порт"].c_str(),
+                                  row["urlОтправкаДанных"].c_str(),
+                                  row["Логин"].c_str(),
+                                  row["Пароль"].c_str(),
+                                  integr_ref) << "]\n";
         }
     }
 

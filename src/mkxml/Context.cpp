@@ -484,11 +484,12 @@ void RefType::send(const std::ostringstream &sout,
                                                                          new_target,
                                                                          version};
         req.set(boost::beast::http::field::host, host);
-        req.set(boost::beast::http::field::user_agent, BOOST_BEAST_VERSION_STRING);
+        req.set( "Accept","*/*");
         req.set("charset", "utf-8");
         std::string strUserPass = std::string(user)+":"+pass;
         req.set(boost::beast::http::field::authorization, std::string("Basic ").append(base64_encode(strUserPass.c_str(),strUserPass.size())));
         if (isMultipart) {
+            req.set(boost::beast::http::field::user_agent, BOOST_BEAST_VERSION_STRING);
             req.set("X-Data-Source", std::string("urn://dts/nsi/to_").append(system_code + "/v1.0.1"));
             req.set("X-Message-Type", "application/xml");
             req.set("X-Request-Id", std::string("urn:pts:nsi:").append(message_id));
@@ -497,6 +498,7 @@ void RefType::send(const std::ostringstream &sout,
 
             req.body() = makeFormContent(sout.str());
         } else {
+            req.set(boost::beast::http::field::user_agent,"1C+Enterprise/8.3");
             req.set(boost::beast::http::field::content_type, "application/xml");
             req.body() = sout.str();
         }
@@ -508,9 +510,9 @@ void RefType::send(const std::ostringstream &sout,
         boost::asio::ip::tcp::resolver resolver(ioc);
 
         // определяем ip-адрес по доменну
-        //auto const results = resolver.resolve(host, port);
-        isSSL = false;
-        auto const results = resolver.resolve("127.0.0.1", "7777");
+        auto const results = resolver.resolve(host, port);
+        //isSSL = false;
+        //auto const results = resolver.resolve("127.0.0.1", "7777");
 
         if (isSSL) {
             // SSL нужен для работы с сертификатами
@@ -594,7 +596,7 @@ void RefType::send(const std::ostringstream &sout,
     db.commit();
 
 }
-void RefType::mkXMLs(bool isSSL,
+std::size_t RefType::mkXMLs(bool isSSL,
                      bool isMultipart,
                      const std::string &host,
                      const std::string &port,
@@ -602,7 +604,7 @@ void RefType::mkXMLs(bool isSSL,
                      const std::string &user,
                      const std::string &pwd,
                      const pqxx::binarystring &integ_ref) const {
-    unsigned cnt=0;
+    std::size_t cnt=0;
 
     DB &db=cont.get_con();
     if (cont.prepared_sql.find("спрСеансыОбмена") == cont.prepared_sql.end()) {
@@ -709,6 +711,8 @@ void RefType::mkXMLs(bool isSSL,
         sout.clear();
         vrefs.clear();
     }
+
+    return cnt;
 }
 void field(const pqxx::row &row,
            const std::string &vid,
