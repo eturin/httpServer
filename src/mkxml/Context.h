@@ -4,6 +4,14 @@
 #define REF_SIZE 16
 #define LIDS "LIDS"
 
+#include <boost/beast/core.hpp>
+#include <boost/beast/http.hpp>
+#include <boost/beast/ssl.hpp>
+#include <boost/beast/version.hpp>
+#include <boost/asio/connect.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ssl/error.hpp>
+#include <boost/asio/ssl/stream.hpp>
 #include <string>
 #include <vector>
 #include <sstream>
@@ -67,7 +75,8 @@ struct RowTableType {
 struct OuterType: public RowTableType {
     OuterType(pqxx::binarystring id, Context & cont);
     std::string outer_code,
-                outer_name;
+                outer_name,
+                system_code;
     pqxx::binarystring system_ref,
                        outer_ref;
 };
@@ -94,8 +103,24 @@ struct RefType: public OuterType {
     void send(const std::ostringstream &sout,
               const std::vector<pqxx::binarystring> &vref,
               const std::string &message_date,
-              const pqxx::binarystring &message_ref) const;
-    void mkXMLs() const;
+              const pqxx::binarystring &message_ref,
+              const std::string &message_id,
+              bool isSSL,
+              bool isMultipart,
+              const std::string &host,
+              const std::string &port,
+              const std::string &target,
+              const std::string &user,
+              const std::string &pass,
+              const pqxx::binarystring &integ_ref) const;
+    void mkXMLs(bool isSSL,
+                bool isMultipart,
+                const std::string &host,
+                const std::string &port,
+                const std::string &target,
+                const std::string &user,
+                const std::string &pass,
+                const pqxx::binarystring &integ_ref) const;
     void item(const pqxx::binarystring &ref, std::ostringstream &sout) const;
     std::map<std::string, std::vector<Field> > tables;
     std::map<std::string, std::string>         restricted_attrs;

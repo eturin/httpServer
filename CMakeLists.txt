@@ -46,3 +46,6 @@ add_executable(mkxml
         src/mkxml/main.cpp)
 target_link_libraries(mkxml pqxx)
 target_link_libraries(mkxml pq)
+target_link_libraries(mkxml ssl)
+target_link_libraries(mkxml crypto)
+target_link_libraries(mkxml dl)

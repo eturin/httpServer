@@ -103,7 +103,12 @@ pqxx::binarystring Context::from_hex(const std::string &str_hex) const {
     bool k= false;
     for (char c : str_hex) {
         *p_ref *= k ? 16 : 0;
-        *p_ref += '0'<=c && c<='9' ? c-'0' : 10+c-'A';
+        *p_ref += '0'<=c && c<='9' ?
+                        c-'0'
+                  : 'A'<=c && c<='Z' ?
+                        10+c-'A'
+                  :
+                        10+c-'a';
         p_ref+=k;
         k = !k;
     }
@@ -160,9 +165,10 @@ const std::string & RowTableType::get_field_code(Context &cont) {
 
     return field_code;
 }
-OuterType::OuterType(pqxx::binarystring outer_ref, Context & cont) : RowTableType(),
-                                                                     outer_ref(outer_ref),
-                                                                     system_ref(pqxx::binarystring("")){
+OuterType::OuterType(pqxx::binarystring outer_ref,
+                     Context & cont) : RowTableType(),
+                                       outer_ref(outer_ref),
+                                       system_ref(pqxx::binarystring("")){
     DB &db=cont.get_con();
     RowTableType rtt_idobj("rИдентификаторыОбъектовМетаданныхid",cont);
     if (cont.prepared_sql.find("ВнешнийСправочник") == cont.prepared_sql.end()) {
@@ -171,9 +177,11 @@ OuterType::OuterType(pqxx::binarystring outer_ref, Context & cont) : RowTableTyp
             t.Код,
             t.Наименование,
             'r'||i.Имя||'id' as Имя,
-            t.Владелец
+            t.Владелец,
+            s.Код as ВладелецКод
         from rВнешниеСправочникиid as t
              join )") + rtt_idobj.table + R"( as i on(i.Ссылка = t.ИдентификаторСправочникаНСИ)
+             join rВнешниеИнформационныеСистемыid as s on(s.Ссылка = t.Владелец)
         where t. Ссылка = $1
         limit 1)";
         db.p_cn->prepare("ВнешнийСправочник", cont.prepared_sql["ВнешнийСправочник"]);
@@ -184,6 +192,7 @@ OuterType::OuterType(pqxx::binarystring outer_ref, Context & cont) : RowTableTyp
     outer_name  = rs[0]["Наименование"].c_str(),
     name        = rs[0]["Имя"].c_str();
     system_ref  = pqxx::binarystring(rs[0]["Владелец"]);
+    system_code = rs[0]["ВладелецКод"].c_str();
 
     RowTableType rtt = RowTableType(name,cont);
     table_type  = rtt.table_type;
@@ -196,7 +205,9 @@ OuterType::OuterType(pqxx::binarystring outer_ref, Context & cont) : RowTableTyp
     ref         = rtt.ref;
 
 }
-RefType::RefType(pqxx::binarystring outer_ref, Context &cont): OuterType(outer_ref,cont), cont(cont) {
+RefType::RefType(pqxx::binarystring outer_ref,
+                 Context &cont): OuterType(outer_ref,cont),
+                                 cont(cont) {
     DB &db=cont.get_con();
     std::vector<std::string> restrict;
 
@@ -276,20 +287,321 @@ std::vector<pqxx::binarystring> RefType::get_changes() const {
         v.push_back(pqxx::binarystring(row[0]));
     return v;
 }
+
+inline void load_root_certificates(boost::asio::ssl::context& ctx) {
+    const std::string cert = R"(-----BEGIN CERTIFICATE-----
+MIIFKjCCBBKgAwIBAgITLwAAAA/kBUusWE4AFAABAAAADzANBgkqhkiG9w0BAQsF
+ADBAMRQwEgYKCZImiZPyLGQBGRYEVEVTVDETMBEGCgmSJomT8ixkARkWA0RFVjET
+MBEGA1UEAxMKREVWLVJPT1RDQTAeFw0yMDAyMTExMDU2MThaFw0yNTAyMDkxMDU2
+MThaMEExFDASBgoJkiaJk/IsZAEZFgRURVNUMRMwEQYKCZImiZPyLGQBGRYDREVW
+MRQwEgYDVQQDEwtERVYtU1VCQ0EwMjCCASIwDQYJKoZIhvcNAQEBBQADggEPADCC
+AQoCggEBAOgnOMdu0wLFdYqWN0RNabq2YaOowS8t/xr4Q5d1eZdJ8AyiaakOXLoe
+Ef77805obJOrXn8yC9ov7GOnxWhIwx8IFmuVzOaT3pyP4GGXZ0nZDESyOpRucQGc
+pOzwzDhRhlFYexFd34TDDFRdsDjaD0VDTm6OL03SzQS0XFGqbPZ7chQyJHEqhOgV
+qSF/PE9cGHxhsqlYwcMXtzX/RTDUCS2FOMzYBPFK0z90aDQUNsUycXbWofHBv97P
+9GB1nr7SgdTPLIR0+jA0smOqwcgqcU6X18flFiAHrLlf2pdvWNMjb0APuVfk4jPf
+pRUKyFuGWvUmW8o8fuamNfJ1p1A4lgkCAwEAAaOCAhowggIWMBAGCSsGAQQBgjcV
+AQQDAgEAMB0GA1UdDgQWBBRNY3HiYirva/FLNVZC6MsJOLpXTDAZBgkrBgEEAYI3
+FAIEDB4KAFMAdQBiAEMAQTAOBgNVHQ8BAf8EBAMCAYYwDwYDVR0TAQH/BAUwAwEB
+/zAfBgNVHSMEGDAWgBQfJgu9ve/Sf9jqUgX4s7NRPJwPbjCByQYDVR0fBIHBMIG+
+MIG7oIG4oIG1hoGybGRhcDovLy9DTj1ERVYtUk9PVENBLENOPURFVi1TUi1EQzAx
+LENOPUNEUCxDTj1QdWJsaWMlMjBLZXklMjBTZXJ2aWNlcyxDTj1TZXJ2aWNlcyxD
+Tj1Db25maWd1cmF0aW9uLERDPURFVixEQz1URVNUP2NlcnRpZmljYXRlUmV2b2Nh
+dGlvbkxpc3Q/YmFzZT9vYmplY3RDbGFzcz1jUkxEaXN0cmlidXRpb25Qb2ludDCB
+uQYIKwYBBQUHAQEEgawwgakwgaYGCCsGAQUFBzAChoGZbGRhcDovLy9DTj1ERVYt
+Uk9PVENBLENOPUFJQSxDTj1QdWJsaWMlMjBLZXklMjBTZXJ2aWNlcyxDTj1TZXJ2
+aWNlcyxDTj1Db25maWd1cmF0aW9uLERDPURFVixEQz1URVNUP2NBQ2VydGlmaWNh
+dGU/YmFzZT9vYmplY3RDbGFzcz1jZXJ0aWZpY2F0aW9uQXV0aG9yaXR5MA0GCSqG
+SIb3DQEBCwUAA4IBAQBK7oe3pGKtcPL3b0R9BAqkdbQKqiE7XK0MTM7rB31BCtaQ
+A5bXQpuWcJK9RXBqsECTH2K1VAszDsyonhiqzdhLbiAx/NlDWQ40UijbGUjmQAeS
+iMSCqvR2KZnuU9r3I1tjj3Kyo11cbl8CBvb61Ax4GXRlAKsfQG13j+26OJoxmnF7
+B2zU9pvDpRMkfMakM8oj66tsJfUXRS/ZXsuUfgINX0hkvSgnqGPb0wQxi463zdTA
+U8YpPs0EvK+Os6lYFVj15tqB9nlU27FBCOQRkKyZB2dsTWMcnnEFVcBHXlNYWVLR
+OO964AN3MRjvy/3AgncRbYqWokrqqnEfTNQ8rTUF
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----
+MIIDgjCCAmqgAwIBAgIQVIfDgh0x5oZFBioW1mvbhDANBgkqhkiG9w0BAQsFADBA
+MRQwEgYKCZImiZPyLGQBGRYEVEVTVDETMBEGCgmSJomT8ixkARkWA0RFVjETMBEG
+A1UEAxMKREVWLVJPT1RDQTAgFw0yMDAyMDYwNTM1MzRaGA8yMDUwMDIxMTA5MDcx
+N1owQDEUMBIGCgmSJomT8ixkARkWBFRFU1QxEzARBgoJkiaJk/IsZAEZFgNERVYx
+EzARBgNVBAMTCkRFVi1ST09UQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK
+AoIBAQCzJy5rZ/EXhuH/lee+oKwdXMFyREMiGztPDh4DztmNjhlofAluc9eZy5SX
+R0vYnjUbqDbJaKSJ8GmbPWQj21nAh8y5zCOUomWRZr9iv3Oj9S92W1N9dCDW6Dgc
+ITKX/JT2IVkFltSARfI6iGmJuf+OcjYrkCo2auXM9GRkH0y4sXNSoRBII15f5OFv
+bKtvbyVs5yXdiwG5a7a4dPPMPb7F5JQLyPJXvTqdxZrwZiWe4tpieAXMhzFfXj8v
+sUK+8frjwaLmyVw8eShDCqd0hTJajndK1Fy1o/XBjrlK5s2J08CitzRFCrZ0NW9m
+CphCOlRa+oOmzh1wIEdhuQDCssw1AgMBAAGjdjB0MAsGA1UdDwQEAwIBhjAPBgNV
+HRMBAf8EBTADAQH/MB0GA1UdDgQWBBQfJgu9ve/Sf9jqUgX4s7NRPJwPbjAQBgkr
+BgEEAYI3FQEEAwIBATAjBgkrBgEEAYI3FQIEFgQU6Q1K76KrgJ4KWUwSZOjme/zk
+mA8wDQYJKoZIhvcNAQELBQADggEBAIKgwDRFuWoFcZ0J/RvyK7qyTYMx2pBSacjA
+I8eRwoK4EjPp0VJ124VFhp3bI1Au4GI+NfB0527C7/NiJOP11qXIR7AmWRZjrlFg
+/htVqm6eS0qZ6bc9B7GoMueHg5+kW5UEdeVIU3CP1kYaqu88yiiAlvmCfkqKTyh+
+CO9ETnqvKAA9gdGNIPIAB1tlHnxKpXuk8+2Xt9v5zgshCfhvJlvxM6Ac5COKig//
+VE0/b8lXkJ51u1Jbasa+CRPxettLJ3kEMZEfRBl9tlbutkyWZSGFk1iqskwA1eyg
+FujqWSe4XcsJs6KiotdTe1avTuW2x1cWXdCP8WMMHq7K7LTGhhc=
+-----END CERTIFICATE-----)";
+
+    boost::system::error_code ec;
+    ctx.add_certificate_authority(boost::asio::buffer(cert.data(), cert.size()), ec);
+    if(ec) throw boost::system::system_error{ec};
+}
+
+std::string makeFormContent(const std::string & body) {
+    std::ostringstream ss;
+
+    ss << "--41d148306c0b2d3d0dd779d462883b7c\r\n"
+       << "X-Seq-Num: 1\r\n"
+       << "X-Is-Last: true\r\n"
+       << "Content-Disposition: form-data; name=\"MessageText\"\r\n\r\n"
+       << body << "\r\n";
+
+    ss << "--41d148306c0b2d3d0dd779d462883b7c--";
+
+    return ss.str();
+}
+
+
+
+static const std::string base64_chars =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz"
+        "0123456789+/";
+
+
+static inline bool is_base64(char c) {
+    return (isalnum(c) || (c == '+') || (c == '/'));
+}
+
+std::string base64_encode(const char *buf,
+                          unsigned int bufLen) {
+    std::string ret;
+    int i = 0;
+    int j = 0;
+    char char_array_3[3];
+    char char_array_4[4];
+
+    while (bufLen--) {
+        char_array_3[i++] = *(buf++);
+        if (i == 3) {
+            char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
+            char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
+            char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
+            char_array_4[3] = char_array_3[2] & 0x3f;
+
+            for(i = 0; (i <4) ; i++)
+                ret += base64_chars[char_array_4[i]];
+            i = 0;
+        }
+    }
+
+    if (i)
+    {
+        for(j = i; j < 3; j++)
+            char_array_3[j] = '\0';
+
+        char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
+        char_array_4[1] = ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
+        char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
+        char_array_4[3] = char_array_3[2] & 0x3f;
+
+        for (j = 0; (j < i + 1); j++)
+            ret += base64_chars[char_array_4[j]];
+
+        while((i++ < 3))
+            ret += '=';
+    }
+
+    return ret;
+}
+
+std::vector<char> base64_decode(std::string const& encoded_string) {
+    int in_len = encoded_string.size();
+    int i = 0;
+    int j = 0;
+    int in_ = 0;
+    char char_array_4[4], char_array_3[3];
+    std::vector<char> ret;
+
+    while (in_len-- && ( encoded_string[in_] != '=') && is_base64(encoded_string[in_])) {
+        char_array_4[i++] = encoded_string[in_]; in_++;
+        if (i ==4) {
+            for (i = 0; i <4; i++)
+                char_array_4[i] = base64_chars.find(char_array_4[i]);
+
+            char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+            char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+            char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+
+            for (i = 0; (i < 3); i++)
+                ret.push_back(char_array_3[i]);
+            i = 0;
+        }
+    }
+
+    if (i) {
+        for (j = i; j <4; j++)
+            char_array_4[j] = 0;
+
+        for (j = 0; j <4; j++)
+            char_array_4[j] = base64_chars.find(char_array_4[j]);
+
+        char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+        char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+        char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+
+        for (j = 0; (j < i - 1); j++) ret.push_back(char_array_3[j]);
+    }
+
+    return ret;
+}
 void RefType::send(const std::ostringstream &sout,
                    const std::vector<pqxx::binarystring> &vref,
                    const std::string &message_date,
-                   const pqxx::binarystring &message_ref) const {
+                   const pqxx::binarystring &message_ref,
+                   const std::string &message_id,
+                   bool isSSL,
+                   bool isMultipart,
+                   const std::string &host,
+                   const std::string &port,
+                   const std::string &target,
+                   const std::string &user,
+                   const std::string &pass,
+                   const pqxx::binarystring &integ_ref) const {
+
+    std::stringstream ss;
+
+    std::string new_target(target);
+    if (!isMultipart) {
+        std::size_t pos = target.find("{КодыИнформационныхСистем}");
+        if (pos != std::string::npos)
+            new_target = new_target.substr(0,pos)+system_code;
+    }
+
+    try {
+        int  version = 11; //или 10 (т.е. 1.0)
+        // формируем HTTP-запрос
+        boost::beast::http::request<boost::beast::http::string_body> req{boost::beast::http::verb::post,
+                                                                         new_target,
+                                                                         version};
+        req.set(boost::beast::http::field::host, host);
+        req.set(boost::beast::http::field::user_agent, BOOST_BEAST_VERSION_STRING);
+        req.set("charset", "utf-8");
+        std::string strUserPass = std::string(user)+":"+pass;
+        req.set(boost::beast::http::field::authorization, std::string("Basic ").append(base64_encode(strUserPass.c_str(),strUserPass.size())));
+        if (isMultipart) {
+            req.set("X-Data-Source", std::string("urn://dts/nsi/to_").append(system_code + "/v1.0.1"));
+            req.set("X-Message-Type", "application/xml");
+            req.set("X-Request-Id", std::string("urn:pts:nsi:").append(message_id));
+            req.set(boost::beast::http::field::content_type,
+                    "multipart/form-data; boundary=41d148306c0b2d3d0dd779d462883b7c");
+
+            req.body() = makeFormContent(sout.str());
+        } else {
+            req.set(boost::beast::http::field::content_type, "application/xml");
+            req.body() = sout.str();
+        }
+        req.prepare_payload(); // вычисление размера тела
+
+        // io_context требуется для всех операций I/O (ввода/вывода)
+        boost::asio::io_context ioc;
+        // этот объект выполняет операции I/O (ввода/вывода)
+        boost::asio::ip::tcp::resolver resolver(ioc);
+
+        // определяем ip-адрес по доменну
+        //auto const results = resolver.resolve(host, port);
+        isSSL = false;
+        auto const results = resolver.resolve("127.0.0.1", "7777");
+
+        if (isSSL) {
+            // SSL нужен для работы с сертификатами
+            boost::asio::ssl::context ctx(boost::asio::ssl::context::tlsv12_client);
+            // указываем доверенные сертификаты
+            load_root_certificates(ctx);
+            // проверяем сертификат сервера
+            ctx.set_verify_mode(boost::asio::ssl::verify_peer);
+
+            boost::beast::ssl_stream<boost::beast::tcp_stream> stream(ioc, ctx);
+            // устанавливаем SNI Hostname (для успешной установки связи)
+            if (!SSL_set_tlsext_host_name(stream.native_handle(), host.c_str())) {
+                boost::beast::error_code ec{static_cast<int>(::ERR_get_error()),
+                                            boost::asio::error::get_ssl_category()};
+                throw boost::beast::system_error{ec};
+            }
+
+            // устанавливаем соединение c ip-адресом, полученным выше
+            boost::beast::get_lowest_layer(stream).connect(results);
+            // SSL handshake
+            stream.handshake(boost::asio::ssl::stream_base::client);
+
+            // отправляем запрос
+            boost::beast::http::write(stream, req);
+            // буфер, для извлечения ответа
+            boost::beast::flat_buffer buffer;
+            // контейнер для хранения ответа
+            boost::beast::http::response<boost::beast::http::dynamic_body> res;
+            // вычитываем HTTP-ответ
+            boost::beast::http::read(stream, buffer, res);
+
+            // Write the message to standard out
+            ss << res << std::endl;
+
+            // закрываем сокет
+            boost::beast::error_code ec;
+            stream.shutdown(ec);
+            if (ec == boost::asio::error::eof) {
+                ec = {}; // причина: http://stackoverflow.com/questions/25587403/boost-asio-ssl-async-shutdown-always-finishes-with-an-error
+            }
+            if (ec) throw boost::beast::system_error{ec};
+
+            // в этом месте соединение корректно закрыто
+        } else {
+            boost::beast::tcp_stream stream(ioc);
+            // устанавливаем соединение c ip-адресом, полученным выше
+            stream.connect(results);
+
+            // отправляем запрос
+            boost::beast::http::write(stream, req);
+            // буфер, для извлечения ответа
+            boost::beast::flat_buffer buffer;
+            // контейнер для хранения ответа
+            boost::beast::http::response<boost::beast::http::dynamic_body> res;
+            // вычитываем HTTP-ответ
+            boost::beast::http::read(stream, buffer, res);
+
+            // Write the message to standard out
+            ss << res << std::endl;
+
+            // закрываем сокет
+            boost::beast::error_code ec;
+            stream.socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+
+            if(ec && ec != boost::beast::errc::not_connected)
+                throw boost::beast::system_error{ec};
+
+            // в этом месте соединение корректно закрыто
+        }
+    } catch(std::exception const& e) {
+        ss << "Error: " << e.what() << std::endl;
+        std::cerr << "Error: " << ss.str() << std::endl;
+    }
+
     DB &db=cont.get_con();
 
     for (const auto &x : vref)
         db.p_W->exec_prepared("sСеансыОбменаid",message_date,message_ref,outer_ref,ref,x);
 
-    db.p_W->exec_prepared("sИсторияОбменаid",message_date,message_ref,sout.str(),'ok');
+    db.p_W->exec_prepared("sИсторияОбменаid",message_date,integ_ref,message_ref,sout.str(),ss.str());
     db.commit();
 
 }
-void RefType::mkXMLs() const {
+void RefType::mkXMLs(bool isSSL,
+                     bool isMultipart,
+                     const std::string &host,
+                     const std::string &port,
+                     const std::string &target,
+                     const std::string &user,
+                     const std::string &pwd,
+                     const pqxx::binarystring &integ_ref) const {
     unsigned cnt=0;
 
     DB &db=cont.get_con();
@@ -301,8 +613,8 @@ void RefType::mkXMLs() const {
         db.p_cn->prepare("insert_спрСеансыОбмена", sql);
 
         sql = R"(
-        insert into rСеансыОбменаid (ИмяПредопределенныхДанных             ,Ссылка                                                ,Владелец                              ,Код                                             ,Дата               ,ПометкаУдаления,Комментарий,ЭтоОшибка,СеансЗавершен,Направление                           ,ВнешнийСправочник)
-                             values (E'\\x00000000000000000000000000000000',decode(replace(uuid_generate_v4()::text,'-',''),'hex'),E'\\x80d4005056ab252711e92084be4eff39',(select max(Код)+1 as Code from rСеансыОбменаid),now()::timestamp(0),false          ,''         ,false    ,false        ,E'\\xA0C2944C1269CD5445A9BA93230574B0',   $1            )
+        insert into rСеансыОбменаid (ИмяПредопределенныхДанных             ,Ссылка                                                ,Владелец,Код                                             ,Дата               ,ПометкаУдаления,Комментарий,ЭтоОшибка,СеансЗавершен,Направление                           ,ВнешнийСправочник)
+                             values (E'\\x00000000000000000000000000000000',decode(replace(uuid_generate_v4()::text,'-',''),'hex'),  $1    ,(select max(Код)+1 as Code from rСеансыОбменаid),now()::timestamp(0),false          ,''         ,false    ,false        ,E'\\xA0C2944C1269CD5445A9BA93230574B0',   $2            )
         returning Ссылка,Дата,Код;
         )";
         cont.prepared_sql["спрСеансыОбмена"] = sql;
@@ -316,8 +628,8 @@ void RefType::mkXMLs() const {
         db.p_cn->prepare("sСеансыОбменаid", sql);
 
         sql = R"(
-        insert into sИсторияОбменаid(Период,ИнтеграционнаяКомпонента              ,СеансОбмена,НаправлениеОбмена                     ,УИД                               ,ТекстЗапроса,ТекстОтвета,АдресВызова)
-                              values($1    ,E'\\x80d4005056ab252711e92084be4eff39',$2         ,E'\\xA0C2944C1269CD5445A9BA93230574B0',uuid_generate_v4()::text::mvarchar,   $3       ,  $4       ,'mkXML'    )
+        insert into sИсторияОбменаid(Период,ИнтеграционнаяКомпонента,СеансОбмена,НаправлениеОбмена                     ,УИД                               ,ТекстЗапроса,ТекстОтвета,АдресВызова)
+                              values($1    ,   $2                   ,$3         ,E'\\xA0C2944C1269CD5445A9BA93230574B0',uuid_generate_v4()::text::mvarchar,   $4       ,  $5       ,'mkXML'    )
 
         )";
         cont.prepared_sql["sИсторияОбменаid"] = sql;
@@ -343,12 +655,24 @@ void RefType::mkXMLs() const {
             if (cnt) {
                 sout << "\t</Items>\n"
                      << "</Message>\n";
-                send(sout,vrefs,message_date,message_ref);
+                send(sout,
+                     vrefs,
+                     message_date,
+                     message_ref,
+                     message_id,
+                     isSSL,
+                     isMultipart,
+                     host,
+                     port,
+                     target,
+                     user,
+                     pwd,
+                     integ_ref);
                 sout.clear();
                 vrefs.clear();
             }
             db.p_W->exec_prepared("insert_спрСеансыОбмена");
-            pqxx::result rs = db.p_W->exec_prepared("спрСеансыОбмена",outer_ref);
+            pqxx::result rs = db.p_W->exec_prepared("спрСеансыОбмена",integ_ref,outer_ref);
             message_id   = rs[0][2].c_str(),
             message_date = rs[0][1].c_str();
             message_ref  = pqxx::binarystring(rs[0][0]);
@@ -369,7 +693,19 @@ void RefType::mkXMLs() const {
     if (cnt) {
         sout << "\t</Items>\n"
              << "</Message>\n";
-        send(sout,vrefs,message_date,message_ref);
+        send(sout,
+             vrefs,
+             message_date,
+             message_ref,
+             message_id,
+             isSSL,
+             isMultipart,
+             host,
+             port,
+             target,
+             user,
+             pwd,
+             integ_ref);
         sout.clear();
         vrefs.clear();
     }
