@@ -1,5 +1,7 @@
 #include <iostream>
+#include <chrono>
 #include "Context.h"
+
 
 
 int main() {
@@ -19,6 +21,7 @@ int main() {
             i.Логин,
             i.Пароль,
             i.РазмерПорции,
+            i.НеОтправлять,
             n.Ссылка as Узел
         from )"+obj.table +R"( as t
             join rИнтеграционныеКомпонентыid     as i on(i.Ссылка = t.ИнтеграционнаяКомпонента
@@ -30,6 +33,7 @@ int main() {
                                                          and n.Состояние = E'\\x82B491E12C75E78D4D8883EE5E515FF1' /* накопление и отправка */)
         where
             t.ИнтеграционнаяКомпонента = $1
+        order by 2
         )");
         db.p_cn->prepare("get_ИнтеграционныеКомпоненты", sql);
         cont.prepared_sql["get_ИнтеграционныеКомпоненты"] = sql;
@@ -37,6 +41,8 @@ int main() {
 
     std::string str_integr_ref;
     while (std::cin >> str_integr_ref) {
+        std::chrono::system_clock::time_point start = std::chrono::system_clock::now();
+
         pqxx::binarystring integr_ref = cont.from_hex(str_integr_ref.c_str());
         pqxx::result rs = db.p_W->exec_prepared("get_ИнтеграционныеКомпоненты",integr_ref);
         int n = rs.affected_rows();
@@ -55,8 +61,16 @@ int main() {
                                   row["Логин"].c_str(),
                                   row["Пароль"].c_str(),
                                   integr_ref,
-                                  node_ref) << "]\n";
+                                  node_ref,
+                                  row["НеОтправлять"].c_str()[0] == 't') << "]\n";
         }
+
+        std::chrono::system_clock::time_point end = std::chrono::system_clock::now();
+        // Определяем тип объекта интервала и вычисляем его значение
+        std::chrono::duration<double> sec = end - start;
+        // вычисляем количество тактов в интервале
+        // и выводим итог
+        std::cout << sec.count() << " сек." << std::endl;
     }
 
     return 0;

@@ -113,7 +113,8 @@ struct RefType: public OuterType {
               const std::string &user,
               const std::string &pass,
               const pqxx::binarystring &integ_ref,
-              const pqxx::binarystring &node_ref) const;
+              const pqxx::binarystring &node_ref,
+              bool dontSend) const;
     std::size_t mkXMLs(bool isSSL,
                         bool isMultipart,
                         const std::string &host,
@@ -122,7 +123,8 @@ struct RefType: public OuterType {
                         const std::string &user,
                         const std::string &pass,
                         const pqxx::binarystring &integ_ref,
-                       const pqxx::binarystring &node_ref) const;
+                        const pqxx::binarystring &node_ref,
+                        bool dontSend) const;
     void item(const pqxx::binarystring &ref, std::ostringstream &sout) const;
     std::map<std::string, std::vector<Field> > tables;
     std::map<std::string, std::string>         restricted_attrs;

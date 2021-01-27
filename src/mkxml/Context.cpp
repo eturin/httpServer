@@ -467,7 +467,8 @@ void RefType::send(const std::ostringstream &sout,
                    const std::string &user,
                    const std::string &pass,
                    const pqxx::binarystring &integ_ref,
-                   const pqxx::binarystring &node_ref) const {
+                   const pqxx::binarystring &node_ref,
+                   bool dontSend) const {
 
     std::stringstream ss;
 
@@ -536,17 +537,19 @@ void RefType::send(const std::ostringstream &sout,
             // SSL handshake
             stream.handshake(boost::asio::ssl::stream_base::client);
 
-            // отправляем запрос
-            boost::beast::http::write(stream, req);
-            // буфер, для извлечения ответа
-            boost::beast::flat_buffer buffer;
-            // контейнер для хранения ответа
-            boost::beast::http::response<boost::beast::http::dynamic_body> res;
-            // вычитываем HTTP-ответ
-            boost::beast::http::read(stream, buffer, res);
+            if (!dontSend) {
+                // отправляем запрос
+                boost::beast::http::write(stream, req);
+                // буфер, для извлечения ответа
+                boost::beast::flat_buffer buffer;
+                // контейнер для хранения ответа
+                boost::beast::http::response<boost::beast::http::dynamic_body> res;
+                // вычитываем HTTP-ответ
+                boost::beast::http::read(stream, buffer, res);
 
-            // Write the message to standard out
-            ss << res << std::endl;
+                // Write the message to standard out
+                ss << res << std::endl;
+            } else ss << "Не отправлялось сообщение" << std::endl;
 
             // закрываем сокет
             boost::beast::error_code ec;
@@ -562,17 +565,19 @@ void RefType::send(const std::ostringstream &sout,
             // устанавливаем соединение c ip-адресом, полученным выше
             stream.connect(results);
 
-            // отправляем запрос
-            boost::beast::http::write(stream, req);
-            // буфер, для извлечения ответа
-            boost::beast::flat_buffer buffer;
-            // контейнер для хранения ответа
-            boost::beast::http::response<boost::beast::http::dynamic_body> res;
-            // вычитываем HTTP-ответ
-            boost::beast::http::read(stream, buffer, res);
+            if (!dontSend) {
+                // отправляем запрос
+                boost::beast::http::write(stream, req);
+                // буфер, для извлечения ответа
+                boost::beast::flat_buffer buffer;
+                // контейнер для хранения ответа
+                boost::beast::http::response<boost::beast::http::dynamic_body> res;
+                // вычитываем HTTP-ответ
+                boost::beast::http::read(stream, buffer, res);
 
-            // Write the message to standard out
-            ss << res << std::endl;
+                // Write the message to standard out
+                ss << res << std::endl;
+            } else ss << "Не отправлялось сообщение" << std::endl;
 
             // закрываем сокет
             boost::beast::error_code ec;
@@ -607,7 +612,8 @@ std::size_t RefType::mkXMLs(bool isSSL,
                      const std::string &user,
                      const std::string &pwd,
                      const pqxx::binarystring &integ_ref,
-                     const pqxx::binarystring &node_ref) const {
+                     const pqxx::binarystring &node_ref,
+                     bool dontSend) const {
     std::size_t cnt=0;
 
     DB &db=cont.get_con();
@@ -674,7 +680,8 @@ std::size_t RefType::mkXMLs(bool isSSL,
                      user,
                      pwd,
                      integ_ref,
-                     node_ref);
+                     node_ref,
+                     dontSend);
                 sout.clear();
                 vrefs.clear();
             }
@@ -693,7 +700,7 @@ std::size_t RefType::mkXMLs(bool isSSL,
                  << "\t<Items>\n";
         }
         vrefs.push_back(pair);
-        item(ref, sout);
+        item(pair.first, sout);
         ++cnt;
     }
 
@@ -713,7 +720,8 @@ std::size_t RefType::mkXMLs(bool isSSL,
              user,
              pwd,
              integ_ref,
-             node_ref);
+             node_ref,
+             dontSend);
         sout.clear();
         vrefs.clear();
     }
