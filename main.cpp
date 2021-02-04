@@ -7,6 +7,8 @@
 #include "src/server/server.hpp"
 #include "src/server/context.hpp"
 
+#include "spdlog/spdlog.h"
+
 #define ENV(name,val) std::getenv(name) ? std::getenv(name): val
 #define BUF_SIZE 50
 
@@ -30,22 +32,25 @@ int main(int argc, char* argv[]) {
                 DB_USER_PASS=std::string("DB_USER_PASS=")+db_user_pass;
     try {
         if (argc != 5) {
-            std::cerr << "Использование: http_server <address> <port> <threads> <doc_root>\n";
-            std::cerr << "  Для IPv4:\n";
-            std::cerr << "    "<<argv[0]<<" 0.0.0.0 80 1 .\n";
-            std::cerr << "  Для IPv6:\n";
-            std::cerr << "    "<<argv[0]<<" 0::0 80 1 .\n";
+            std::cerr << "Использование: http_server <address> <port> <threads> <doc_root>\n"
+                      << "  Для IPv4:\n"
+                      << "    "<<argv[0]<<" 0.0.0.0 80 1 .\n"
+                      << "  Для IPv6:\n"
+                      << "    "<<argv[0]<<" 0::0 80 1 .\n";
             return 1;
         }
+
+        spdlog::info("Start.");
+        spdlog::info("Настройки:\n\t{0}\n\t{1}\n\t{2}\n\t{3}\n\t{4}",DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_USER_PASS);
         // инициализация приложения
         int fd_in[2], fd_out[2], fd_err[2], pid;
         if (-1==pipe(fd_in) || -1==pipe(fd_out) || -1==pipe(fd_err)) {
             int err=errno;
-            perror("Не удалось сделать pipe");
-            exit(err);
+            spdlog::error("Не удалось сделать pipe: {}", err);
+            exit(1);
         }else if ((pid=fork())==-1) {
             int err=errno;
-            perror("Не удалось сделать fork");
+            spdlog::error("Не удалось сделать fork: {}", err);
             exit(err);
         }
 
@@ -55,14 +60,14 @@ int main(int argc, char* argv[]) {
                || -1==close(fd_out[0])
                || -1==close(fd_err[0])) {
                 int err=errno;
-                perror("Не удалось закрыть дескриптор");
+                spdlog::error("Не удалось закрыть дескриптор: {}", err);
                 exit(err);
             }
             if (-1==dup2(fd_in[0],STDIN_FILENO)
                 || -1==dup2(fd_out[1],STDOUT_FILENO)
                 || -1==dup2(fd_err[1],STDERR_FILENO)) {
                 int err=errno;
-                perror("Не удалось сделать dup2");
+                spdlog::error("Не удалось сделать dup2: {}", err);
                 exit(err);
             }
             // задаем переменные окружения загружаемой программы
@@ -72,30 +77,34 @@ int main(int argc, char* argv[]) {
                                  (char* const)(DB_USER.c_str()),
                                  (char* const)(DB_USER_PASS.c_str()),
                                  nullptr};
+
             char *const _argv[] = {(char* const)"handlers/init", nullptr};
             if(-1 == execvpe(_argv[0], _argv, _env)) {
                 int err=errno;
-                perror("Не удалось заменить исполняемый код (execvpe)");
+                spdlog::error("Не удалось заменить исполняемый код (execvpe): {}", err);
                 exit(err);
             }
         } else if (-1==close(fd_in[0])
                    || -1==close(fd_out[1])
                    || -1==close(fd_err[1])) {
             int err=errno;
-            perror("Не удалось закрыть дескриптор");
+            spdlog::error("Не удалось закрыть дескриптор: {}", err);
             exit(err);
         }
 
         char buf[BUF_SIZE+1]={0};
-        while (0<read(fd_out[0], buf, BUF_SIZE))
-            std::cout << buf;
+        std::string log;
+        while (0<read(fd_out[0], buf, BUF_SIZE)) log.append(buf);
+        spdlog::info(log);
         {
+            log.clear();
             bool is_ok=true;
             while (0<read(fd_err[0], buf, BUF_SIZE)) {
-                std::cerr << buf;
+                log.append(buf);
                 is_ok = false;
             }
             if (!is_ok) {
+                spdlog::info(log);
                 exit(-1);
             }
         }
@@ -104,7 +113,7 @@ int main(int argc, char* argv[]) {
           || -1==close(fd_out[0])
           || -1==close(fd_err[0])) {
             int err=errno;
-            perror("Не удалось закрыть дескриптор");
+            spdlog::error("Не удалось закрыть дескриптор: {}", err);
             exit(err);
         }
         int  status;
@@ -114,16 +123,15 @@ int main(int argc, char* argv[]) {
         std::size_t num_threads = boost::lexical_cast<std::size_t>(argv[3]);
         http::server3::Context cont;
         if (cont.make_pool(num_threads, connection_str)) { // инициализация контекста
-            std::cout << "Starting server... " << argv[1] << " " << argv[2] << " " << num_threads << " " << argv[4]
-                      << '\n';
+            spdlog::info("Запуск сервера.... {0} {1} {2} {3}",argv[1],argv[2],num_threads,argv[4]);
             http::server3::server s(argv[1], argv[2], argv[4], num_threads, cont);
             // запуск
             s.run();
         } else {
-            std::cerr << "Ошибка инициализации\n";
+            spdlog::error("Ошибка инициализации сервера");
         }
     } catch (std::exception& e) {
-        std::cerr << "Ошибка: " << e.what() << "\n";
+        spdlog::error("Ошибка: {}", e.what());
     }
 
     return 0;

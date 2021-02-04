@@ -3,6 +3,7 @@
 #include <boost/bind.hpp>
 #include <wait.h>
 #include "request_handler.hpp"
+#include "spdlog/spdlog.h"
 
 namespace http {
     namespace server3 {
@@ -10,7 +11,8 @@ namespace http {
                                request_handler& handler) : io_service(io_service),
                                                            strand_(io_service),
                                                            socket_(io_service),
-                                                           request_handler_(handler)
+                                                           request_handler_(handler),
+                                                           start_time(std::chrono::system_clock::now())
         {
         }
 

@@ -6,10 +6,12 @@
 #include <boost/noncopyable.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/enable_shared_from_this.hpp>
+#include <chrono>
 #include "reply.hpp"
 #include "request.hpp"
 #include "request_handler.hpp"
 #include "request_parser.hpp"
+
 
 namespace http {
     namespace server3 {
@@ -31,6 +33,8 @@ namespace http {
             bool sync=false;
             ~connection();
         private:
+            // время получения запроса
+            std::chrono::system_clock::time_point start_time;
             // обработчик завершения операции записи в socket
             void handle_write_socket(const boost::system::error_code& e);
             // обработчик завершения операции чтения из socket

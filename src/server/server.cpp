@@ -3,6 +3,7 @@
 #include <boost/bind.hpp>
 #include <boost/shared_ptr.hpp>
 #include <vector>
+#include "spdlog/spdlog.h"
 
 namespace http {
     namespace server3 {
@@ -21,6 +22,7 @@ namespace http {
             // Регистрируем обработчик сигналов прекращения работы сервера.
             // Можно регистрировать обработчики сигнала несколько раз при условие, что
             // регистрация через Asio.
+            spdlog::info("Регистрирую обработчик сигнала прекращения работы сервера");
             signals_.add(SIGINT);
             signals_.add(SIGTERM);
 #if defined(SIGQUIT)
@@ -32,6 +34,7 @@ namespace http {
             boost::asio::ip::tcp::resolver resolver(io_service_);
             boost::asio::ip::tcp::resolver::query query(address, port);
             boost::asio::ip::tcp::endpoint endpoint = *resolver.resolve(query);
+            spdlog::info("Настраиваю acceptor");
             acceptor_.open(endpoint.protocol());
             acceptor_.set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
             acceptor_.bind(endpoint);
@@ -42,6 +45,7 @@ namespace http {
 
         void server::run() {
             // создаем пул потоков
+            spdlog::warn("Запуск сервера");
             std::vector<boost::shared_ptr<boost::thread> > threads;
             for (std::size_t i = 0; i < thread_pool_size_; ++i) {
                 boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&boost::asio::io_service::run, &io_service_)));
@@ -69,6 +73,7 @@ namespace http {
         }
 
         void server::handle_stop() {
+            spdlog::warn("Прекращение работы.");
             io_service_.stop();
         }
     } // namespace server3

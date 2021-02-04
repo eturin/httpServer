@@ -4,7 +4,7 @@ set(CMAKE_BUILD_DIRECTORY build)
 add_subdirectory(src/spdlog)
 
 project(httpServer)
-
+include_directories(src/spdlog/include/)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
