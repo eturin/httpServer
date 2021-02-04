@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.11)
 set(CMAKE_BUILD_DIRECTORY build)
 
+add_subdirectory(src/spdlog)
+
 project(httpServer)
 
 

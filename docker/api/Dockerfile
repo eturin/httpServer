@@ -21,6 +21,8 @@ RUN mkdir -p /opt/api/                                              \
     && cd /opt/api/                                                 \ 
     && rm -rf libpqxx                                               \                                            
     && git clone https://github.com/eturin/httpServer.git project   \
+    && cd project/src && rm -rf spdlog                              \                                              \
+    && git clone https://github.com/gabime/spdlog.git               \
     && mkdir project/build                                          \
     && cd project/build                                             \
     && cmake ../                                                    \
