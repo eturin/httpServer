@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <boost/lexical_cast.hpp>
+#include <wait.h>
 
 #include "src/server/server.hpp"
 #include "src/server/context.hpp"
@@ -106,6 +107,8 @@ int main(int argc, char* argv[]) {
             perror("Не удалось закрыть дескриптор");
             exit(err);
         }
+        int  status;
+        if (!waitpid(pid,&status,WNOHANG)) kill(pid,9);
 
         // инициализация сервера
         std::size_t num_threads = boost::lexical_cast<std::size_t>(argv[3]);

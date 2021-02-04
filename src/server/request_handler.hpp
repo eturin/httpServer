@@ -6,8 +6,10 @@
 #include <boost/lexical_cast.hpp>
 #include "context.hpp"
 
+
 namespace http {
     namespace server3 {
+        class connection;
         struct reply;
         struct request;
 
@@ -17,7 +19,7 @@ namespace http {
             explicit request_handler(const std::string& doc_root,Context &context);
 
             // обработка запроса и формирование ответа
-            void handle_request(const request& req, reply& rep);
+            bool handle_request(const request& req, reply& rep, connection * client);
         private:
             Context &context;
             // корневой каталог сервера

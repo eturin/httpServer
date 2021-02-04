@@ -28,6 +28,10 @@ namespace http {
                 insert into rq_ВходящаяОчередь_Параметрыid(Ссылка,KeyField,НомерСтроки,Имя,Значение)
                                                     values(   $1 , $2     , $3        , $4,  $5    )
                 )");
+                conn->prepare("is_cpp", R"(
+                --определение обработчика
+                select t.cpp from rq_Запросыid as t where t.Код = $1 and t.Использовать;
+                )");
 
                 return true;
             } else return false;
