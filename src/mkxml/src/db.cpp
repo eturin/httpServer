@@ -16,7 +16,8 @@ DB::DB(const Context *cont) : p_cn(new pqxx::connection(cont->connection_string)
 DB::~DB() {
     if (p_W) {
         commit();
-        delete p_W, p_cn;
+        delete p_W;
+        delete p_cn;
     }
 }
 void DB::commit() {

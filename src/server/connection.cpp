@@ -1,7 +1,7 @@
 #include "connection.hpp"
 #include <vector>
 #include <boost/bind.hpp>
-#include <wait.h>
+#include <sys/wait.h>
 #include "request_handler.hpp"
 #include "spdlog/spdlog.h"
 
@@ -17,7 +17,9 @@ namespace http {
         }
 
         connection::~connection() {
-            delete stream_out, stream_err, stream_in;
+            delete stream_out;
+            delete stream_err;
+            delete stream_in;
             close(fd_in[1]);
             close(fd_out[0]);
             close(fd_err[0]);

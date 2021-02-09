@@ -7,9 +7,9 @@ services:
                 ports:
                         - 8888:8888
                 environment:
-                        - DB_HOST=10.10.10.127
+                        - DB_HOST=192.168.52.80
                         - DB_PORT=5432
-                        - DB_NAME=mdm
-                        - DB_USER=postgres
-                        - DB_USER_PASS=123
+                        - DB_NAME=NSI
+                        - DB_USER=user1c
+                        - DB_USER_PASS=sGLaVj4PUw
 

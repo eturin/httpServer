@@ -2,7 +2,7 @@
 
 #include <iostream>
 #include <boost/lexical_cast.hpp>
-#include <wait.h>
+#include <sys/wait.h>
 
 #include "src/server/server.hpp"
 #include "src/server/context.hpp"
