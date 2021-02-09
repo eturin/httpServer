@@ -17,6 +17,9 @@
 #include <sstream>
 #include "db.h"
 
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/syslog_sink.h"
+
 struct RowTableType;
 
 struct Context {

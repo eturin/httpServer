@@ -1,5 +1,6 @@
 #include "request.hpp"
 #include "spdlog/spdlog.h"
+#include "common.hpp"
 
 namespace http {
     namespace server3 {
@@ -53,7 +54,7 @@ namespace http {
             }
 
             W.commit();
-            spdlog::info("Запрос сохранен в ПТС НСИ");
+            cont.syslog_logger->info("Запрос сохранен в ПТС НСИ");
 
             return true;
         }

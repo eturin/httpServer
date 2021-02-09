@@ -26,7 +26,7 @@ namespace http {
             std::string request_path;
             if (!url_decode(req.uri, request_path)) {
                 rep = reply::stock_reply(reply::bad_request);
-                spdlog::warn("Не удалось декодировать uri: {}", req.uri);
+                context.syslog_logger->warn("Не удалось декодировать uri: {}", req.uri);
                 return true;
             }
 
@@ -35,7 +35,7 @@ namespace http {
                 || request_path[0] != '/'
                 || request_path.find("..") != std::string::npos) {
                 rep = reply::stock_reply(reply::bad_request);
-                spdlog::warn("запрашиваемый путь должен быть абсолютный и не содержать \"..\": {}", request_path);
+                context.syslog_logger->warn("запрашиваемый путь должен быть абсолютный и не содержать \"..\": {}", request_path);
                 return true;
             }
 
@@ -48,13 +48,13 @@ namespace http {
                 //  сохраняем
                 if(!req.save(context.get_conn(), context)) {
                     rep = reply::stock_reply(reply::internal_server_error);
-                    spdlog::error("Запрс не сохранен в ПТС НСИ");
+                    context.syslog_logger->error("Запрс не сохранен в ПТС НСИ");
                     return true;
                 };
                 //определяем обработчик
                 pqxx::connection *conn = context.get_conn();
                 if (!conn->is_open() && !context.prepare(conn)) {
-                    spdlog::error("Не настроено соединение с СУБД");
+                    context.syslog_logger->error("Не настроено соединение с СУБД");
                     return true;
                 }
                 pqxx::work W(*conn);
@@ -64,11 +64,11 @@ namespace http {
                     //запуск обработчика
                     if (-1==pipe(client->fd_in) || -1==pipe(client->fd_out) || -1==pipe(client->fd_err)) {
                         int err=errno;
-                        spdlog::error("Не удалось сделать pipe: {}", err);
+                        context.syslog_logger->error("Не удалось сделать pipe: {}", err);
                         return true;
                     }else if ((client->pid=fork())==-1) {
                         int err=errno;
-                        spdlog::error("Не удалось сделать fork: {}", err);
+                        context.syslog_logger->error("Не удалось сделать fork: {}", err);
                         return true;
                     }
 
@@ -78,14 +78,14 @@ namespace http {
                             || -1==close(client->fd_out[0])
                             || -1==close(client->fd_err[0])) {
                             int err=errno;
-                            spdlog::error("Не удалось закрыть дескриптор в дочернем процессе обработчика запроса: {}", err);
+                            context.syslog_logger->error("Не удалось закрыть дескриптор в дочернем процессе обработчика запроса: {}", err);
                             exit(1);
                         }
                         if (-1==dup2(client->fd_in[0],STDIN_FILENO)
                             || -1==dup2(client->fd_out[1],STDOUT_FILENO)
                             || -1==dup2(client->fd_err[1],STDERR_FILENO)) {
                             int err=errno;
-                            spdlog::error("Не удалось сделать dup2: {}", err);
+                            context.syslog_logger->error("Не удалось сделать dup2: {}", err);
                             exit(1);
                         }
                         // задаем переменные окружения загружаемой программы
@@ -112,14 +112,14 @@ namespace http {
                         char *const _argv[] = {(char* const)path.c_str(), nullptr};
                         if (-1 == execvpe(_argv[0], _argv, (char *const *)&_env[0])) {
                             int err=errno;
-                            spdlog::error("Не удалось заменить исполняемый код (execvpe): {}",err);
+                            context.syslog_logger->error("Не удалось заменить исполняемый код (execvpe): {}",err);
                             exit(1);
                         }
                     } else if (-1==close(client->fd_in[0])
                                || -1==close(client->fd_out[1])
                                || -1==close(client->fd_err[1])) {
                         int err=errno;
-                        spdlog::error("Не удалось закрыть дескриптор: {}", err);
+                        context.syslog_logger->error("Не удалось закрыть дескриптор: {}", err);
                         return  true;
                     }
                     //передаем body

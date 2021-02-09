@@ -1,13 +1,14 @@
 #include "context.hpp"
 #include "spdlog/spdlog.h"
+#include "common.hpp"
 
 namespace http {
     namespace server3 {
-        Context::Context() : uuid_num(),conns() {}
+        Context::Context(std::shared_ptr<spdlog::logger> &syslog_logger) : uuid_num(),conns(),syslog_logger(syslog_logger) {}
 
         bool Context::prepare(pqxx::connection *conn) {
             if (conn->is_open()) {
-                spdlog::info("Настройка соединения с СУБД");
+                syslog_logger->info("Настройка соединения с СУБД");
                 conn->prepare("dml_queue_post", R"(
                 --запрос
                 insert into rq_ВходящаяОчередьid (Ссылка                                                ,ПометкаУдаления,ИмяПредопределенныхДанных             ,Дата ,URL,Метод,ТипСообщения,Размер,КоличествоПопыток,СообщениеОбработчика,ДатаОбработки               ,ВходящийИдентификатор,data)
@@ -41,14 +42,14 @@ namespace http {
 
         bool Context::make_pool(std::size_t cnt, const std::string & connection_string){
             try {
-                spdlog::info("Формирования пула соединений с СУБД");
+                syslog_logger->info("Формирования пула соединений с СУБД");
                 for (std::size_t i = 0; i<cnt; ++i) {
                     conns.push_back(new pqxx::connection(connection_string));
                     if (!conns[i]->is_open()) return false;
                     else prepare(conns[i]);
                 }
             } catch (const std::exception &e) {
-                spdlog::error("Ошибка формирования пула соединений с СУБД {}", e.what());
+                syslog_logger->error("Ошибка формирования пула соединений с СУБД {}", e.what());
                 return false;
             }
 

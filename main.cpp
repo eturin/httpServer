@@ -7,7 +7,7 @@
 #include "src/server/server.hpp"
 #include "src/server/context.hpp"
 
-#include "spdlog/spdlog.h"
+#include "src/server/common.hpp"
 
 #define ENV(name,val) std::getenv(name) ? std::getenv(name): val
 #define BUF_SIZE 50
@@ -30,6 +30,9 @@ int main(int argc, char* argv[]) {
                 DB_NAME=std::string("DB_NAME=")+db_name,
                 DB_USER=std::string("DB_USER=")+db_user,
                 DB_USER_PASS=std::string("DB_USER_PASS=")+db_user_pass;
+
+    std::shared_ptr<spdlog::logger> syslog_logger = spdlog::syslog_logger_mt("syslog", "api-cpp", LOG_PID | LOG_CONS);
+
     try {
         if (argc != 5) {
             std::cerr << "Использование: http_server <address> <port> <threads> <doc_root>\n"
@@ -40,17 +43,18 @@ int main(int argc, char* argv[]) {
             return 1;
         }
 
-        spdlog::info("Start.");
-        spdlog::info("Настройки:\n\t{0}\n\t{1}\n\t{2}\n\t{3}\n\t{4}",DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_USER_PASS);
+
+        syslog_logger->info("Start.");
+        syslog_logger->info("Настройки: {0}, {1}, {2}, {3}, {4}", DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_USER_PASS);
         // инициализация приложения
         int fd_in[2], fd_out[2], fd_err[2], pid;
         if (-1==pipe(fd_in) || -1==pipe(fd_out) || -1==pipe(fd_err)) {
             int err=errno;
-            spdlog::error("Не удалось сделать pipe: {}", err);
+            syslog_logger->error("Не удалось сделать pipe: {}", err);
             exit(1);
         }else if ((pid=fork())==-1) {
             int err=errno;
-            spdlog::error("Не удалось сделать fork: {}", err);
+            syslog_logger->error("Не удалось сделать fork: {}", err);
             exit(err);
         }
 
@@ -60,7 +64,7 @@ int main(int argc, char* argv[]) {
                || -1==close(fd_out[0])
                || -1==close(fd_err[0])) {
                 int err=errno;
-                spdlog::error("Не удалось закрыть дескриптор: {}", err);
+                syslog_logger->error("Не удалось закрыть дескриптор: {}", err);
                 exit(err);
             }
             if (-1==dup2(fd_in[0],STDIN_FILENO)
@@ -81,21 +85,21 @@ int main(int argc, char* argv[]) {
             char *const _argv[] = {(char* const)"handlers/init", nullptr};
             if(-1 == execvpe(_argv[0], _argv, _env)) {
                 int err=errno;
-                spdlog::error("Не удалось заменить исполняемый код (execvpe): {}", err);
+                syslog_logger->error("Не удалось заменить исполняемый код (execvpe): {}", err);
                 exit(err);
             }
         } else if (-1==close(fd_in[0])
                    || -1==close(fd_out[1])
                    || -1==close(fd_err[1])) {
             int err=errno;
-            spdlog::error("Не удалось закрыть дескриптор: {}", err);
+            syslog_logger->error("Не удалось закрыть дескриптор: {}", err);
             exit(err);
         }
 
         char buf[BUF_SIZE+1]={0};
         std::string log;
         while (0<read(fd_out[0], buf, BUF_SIZE)) log.append(buf);
-        spdlog::info(log);
+        syslog_logger->info(log);
         {
             log.clear();
             bool is_ok=true;
@@ -104,7 +108,7 @@ int main(int argc, char* argv[]) {
                 is_ok = false;
             }
             if (!is_ok) {
-                spdlog::info(log);
+                syslog_logger->info(log);
                 exit(-1);
             }
         }
@@ -113,7 +117,7 @@ int main(int argc, char* argv[]) {
           || -1==close(fd_out[0])
           || -1==close(fd_err[0])) {
             int err=errno;
-            spdlog::error("Не удалось закрыть дескриптор: {}", err);
+            syslog_logger->error("Не удалось закрыть дескриптор: {}", err);
             exit(err);
         }
         int  status;
@@ -121,17 +125,17 @@ int main(int argc, char* argv[]) {
 
         // инициализация сервера
         std::size_t num_threads = boost::lexical_cast<std::size_t>(argv[3]);
-        http::server3::Context cont;
+        http::server3::Context cont(syslog_logger);
         if (cont.make_pool(num_threads, connection_str)) { // инициализация контекста
-            spdlog::info("Запуск сервера.... {0} {1} {2} {3}",argv[1],argv[2],num_threads,argv[4]);
+            syslog_logger->info("Параметры запуска сервера.... {0} {1} {2} {3}",argv[1],argv[2],num_threads,argv[4]);
             http::server3::server s(argv[1], argv[2], argv[4], num_threads, cont);
             // запуск
             s.run();
         } else {
-            spdlog::error("Ошибка инициализации сервера");
+            syslog_logger->error("Ошибка инициализации сервера");
         }
     } catch (std::exception& e) {
-        spdlog::error("Ошибка: {}", e.what());
+        syslog_logger->error("Ошибка: {}", e.what());
     }
 
     return 0;
