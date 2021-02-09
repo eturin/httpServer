@@ -1,9 +1,8 @@
 #include "outer_type.h"
 
-OuterType::OuterType(pqxx::binarystring outer_ref,
+OuterType::OuterType(const std::string &outer_ref,
                      Context & cont) : RowTableType(),
-                                       outer_ref(outer_ref),
-                                       system_ref(pqxx::binarystring("")){
+                                       outer_ref(outer_ref) {
     DB &db=cont.get_con();
     RowTableType rtt_idobj("rИдентификаторыОбъектовМетаданныхid",cont);
     if (cont.prepared_sql.find("ВнешнийСправочник") == cont.prepared_sql.end()) {
@@ -26,7 +25,7 @@ OuterType::OuterType(pqxx::binarystring outer_ref,
     outer_code  = rs[0]["Код"].c_str();
     outer_name  = rs[0]["Наименование"].c_str(),
             name        = rs[0]["Имя"].c_str();
-    system_ref  = pqxx::binarystring(rs[0]["Владелец"]);
+    system_ref  = pqxx::to_string(rs[0]["Владелец"]);
     system_code = rs[0]["ВладелецКод"].c_str();
 
     RowTableType rtt = RowTableType(name,cont);

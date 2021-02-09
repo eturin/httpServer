@@ -3,7 +3,7 @@
 
 namespace http {
     namespace server3 {
-        request::request():ref(pqxx::binarystring("")) {}
+        request::request() {}
 
         bool request::save(pqxx::connection * conn, Context & cont)  const{
             pqxx::work W(*conn);
@@ -17,8 +17,8 @@ namespace http {
             pqxx::result r;
 
             if (body_size) {
-                pqxx::binarystring a(reinterpret_cast<const char*>(&body_size),4),
-                                   b(&body[0],body_size);
+                std::string a(reinterpret_cast<const char*>(&body_size),reinterpret_cast<const char*>(&body_size)+4),
+                            b(body.cbegin(),body.cend());
                 r = W.exec_prepared("dml_queue_post",type,method,end_point,body_size,a,b);
             } else {
                 r = W.exec_prepared("dml_queue_get",type,method,end_point);
@@ -26,7 +26,7 @@ namespace http {
             if (r.affected_rows() != 1)
                 return false;
 
-            ref = pqxx::binarystring(r[0]["Ссылка"]);
+            ref = pqxx::to_string(r[0]["Ссылка"]);
             unsigned n = 0;
             for (auto &e : headers)
                 pqxx::result r = W.exec_prepared("dml_headers",ref,n,++n,e.name,e.value);

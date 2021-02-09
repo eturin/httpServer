@@ -1,19 +1,21 @@
 #include <cstring>
 #include <algorithm>
 #include <iostream>
+#include <string>
 
 #include "Context.h"
 #include "row_table_type.h"
 
 
-Context::Context():outer_ref(pqxx::binarystring("")) {
+Context::Context() {
     prepared_sql[LIDS] = "select t.КодВнешнегоСправочника from sТаблицаПереходныхКлючейid as t where t.ЗначениеСправочникаНСИ_Тип=E'\\\\x08' and t.ЗначениеСправочникаНСИ_Вид=$1 and t.ЗначениеСправочникаНСИ = $2 and t.ВнешнийСправочник = $3";
+    connection_string = get_connection_string();
 
     DB &db=get_con();
     pqxx::result rs=db.p_W->exec("select * from tables_type");
 
     for (const auto &row : rs) {
-        mTablesType[row["id"].c_str()] = {pqxx::binarystring(row["id"]),
+        mTablesType[row["id"].c_str()] = {pqxx::to_string(row["id"]),
                                           row["Описание"].c_str(),
                                           row["type"].c_str(),
                                           row["Таблица"].c_str(),
@@ -33,7 +35,7 @@ Context::Context():outer_ref(pqxx::binarystring("")) {
             x.second.field_name = rs.affected_rows() ? "НаименованиеПолное" : "Наименование";
         }
 
-    connection_string = get_connection_string();
+
     const char *maxItems = std::getenv("MAX_ITEMS");
     max_items = maxItems ? std::atoi(maxItems) : 5000;
 
@@ -76,22 +78,24 @@ DB * Context::activate_con(DB * p_db) {
     }
     return p_db;
 }
-pqxx::binarystring Context::from_hex(const std::string &str_hex) const {
-    unsigned char ref[REF_SIZE],
-                  *p_ref=ref;
-    bool k= false;
+std::basic_string<std::byte> Context::from_hex(const std::string &str_hex) const {
+
+    int val;
+    bool k = false;
+    std::basic_string<std::byte> r;
     for (char c : str_hex) {
-        *p_ref *= k ? 16 : 0;
-        *p_ref += '0'<=c && c<='9' ?
+        val *= k ? 16 : 0;
+        val += '0'<=c && c<='9' ?
                         c-'0'
-                  : 'A'<=c && c<='Z' ?
+               : 'A'<=c && c<='Z' ?
                         10+c-'A'
-                  :
+               :
                         10+c-'a';
-        p_ref+=k;
+        if (k) r.push_back(std::byte(val));
+
         k = !k;
     }
 
-    return pqxx::binarystring(ref,REF_SIZE);
+    return r;
 }
 

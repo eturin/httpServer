@@ -24,7 +24,7 @@ namespace http {
             std::size_t body_size;
             std::vector<char> body;
         private:
-            mutable pqxx::binarystring ref;
+            mutable std::string ref;
         };
     } // namespace server3
 } // namespace http

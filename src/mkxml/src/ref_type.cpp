@@ -1,5 +1,4 @@
 #include "ref_type.h"
-
 #include <iostream>
 
 static const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -164,7 +163,7 @@ void field(const pqxx::row &row,
            const std::string &field,
            std::ostringstream &sout,
            Context &cont,
-           const pqxx::binarystring &system_ref) {
+           const std::string &system_ref) {
 
     if (vid == "Строка")
         sout << "\t\t\t\t\t<Type>simple</Type>\n"
@@ -202,7 +201,7 @@ void field(const pqxx::row &row,
             db.p_cn->prepare(rtt.table+"_short", sql);
             cont.prepared_sql[rtt.table+"_short"]=sql;
         }
-        pqxx::result rs = db.p_W->exec_prepared(rtt.table+"_short",pqxx::binarystring(row[field]));
+        pqxx::result rs = db.p_W->exec_prepared(rtt.table+"_short", pqxx::to_string(row[field]));
         std::string GID = rs.affected_rows() ? rs[0]["Код"].c_str() : "",
                 name= rs.affected_rows() ? rs[0]["Наименование"].c_str() : "";
 
@@ -213,7 +212,7 @@ void field(const pqxx::row &row,
                  << "\t\t\t\t\t</Value>\n"
                  << "\t\t\t\t\t<Name/>\n"
                  << "\t\t\t\t\t<TableName>ЗначенияАтрибутов</TableName>\n";
-        }else {
+        } else {
             if (cont.prepared_sql.find("table_to_outer") == cont.prepared_sql.end()) {
                 std::string sql(R"(
                 SELECT
@@ -244,7 +243,7 @@ void field(const pqxx::row &row,
                         outer_name = rs[0]["Наименование"].c_str();
 
 
-                pqxx::result rs2 = db.p_W->exec_prepared(LIDS,rtt.ref,pqxx::binarystring(row[field]),pqxx::binarystring(rs[0]["Ссылка"]));
+                pqxx::result rs2 = db.p_W->exec_prepared(LIDS, rtt.ref, pqxx::to_string(row[field]), pqxx::to_string(rs[0]["Ссылка"]));
                 for (const auto &rl : rs2) // lids
                     lids.push_back(rl[0].c_str());
 
@@ -277,7 +276,7 @@ void field(const pqxx::row &row,
         }
     }
 }
-RefType::RefType(pqxx::binarystring outer_ref,
+RefType::RefType(std::string outer_ref,
                  Context &cont): OuterType(outer_ref,cont),
                                  cont(cont) {
     DB &db=cont.get_con();
@@ -345,7 +344,7 @@ RefType::RefType(pqxx::binarystring outer_ref,
     }
 
 }
-std::vector<std::pair<pqxx::binarystring, unsigned> > RefType::get_changes() const {
+std::vector<std::pair<std::string, unsigned> > RefType::get_changes() const {
     DB &db=cont.get_con();
     if (cont.prepared_sql.find(name+"changes") == cont.prepared_sql.end()) {
         std::string sql("select t.Ссылка, t.НомерСообщения  from nОбменНСИid as n join  ");
@@ -354,15 +353,15 @@ std::vector<std::pair<pqxx::binarystring, unsigned> > RefType::get_changes() con
         db.p_cn->prepare(name + "changes", sql);
     }
     pqxx::result rs = db.p_W->exec_prepared(name+"changes",outer_ref);
-    std::vector<std::pair<pqxx::binarystring, unsigned> > v;
+    std::vector<std::pair<std::string, unsigned> > v;
     for (const auto &row : rs)
-        v.push_back({pqxx::binarystring(row[0]), row[1].as<unsigned>()});
+        v.push_back({pqxx::to_string(row[0]), row[1].as<unsigned>()});
     return v;
 }
 void RefType::send(const std::ostringstream &sout,
-                   const std::vector<std::pair<pqxx::binarystring, unsigned> > &vref,
+                   const std::vector<std::pair<std::string, unsigned> > &vref,
                    const std::string &message_date,
-                   const pqxx::binarystring &message_ref,
+                   const std::string &message_ref,
                    const std::string &message_id,
                    bool isSSL,
                    bool isMultipart,
@@ -371,8 +370,8 @@ void RefType::send(const std::ostringstream &sout,
                    const std::string &target,
                    const std::string &user,
                    const std::string &pass,
-                   const pqxx::binarystring &integ_ref,
-                   const pqxx::binarystring &node_ref,
+                   const std::basic_string<std::byte> &integ_ref,
+                   const std::string &node_ref,
                    bool dontSend) const {
 
     std::stringstream ss;
@@ -516,8 +515,8 @@ std::size_t RefType::mkXMLs(bool isSSL,
                             const std::string &target,
                             const std::string &user,
                             const std::string &pwd,
-                            const pqxx::binarystring &integ_ref,
-                            const pqxx::binarystring &node_ref,
+                            const std::basic_string<std::byte> &integ_ref,
+                            const std::string &node_ref,
                             bool dontSend) const {
     std::size_t cnt=0;
 
@@ -563,10 +562,10 @@ std::size_t RefType::mkXMLs(bool isSSL,
     }
 
     std::string message_id, message_date;
-    pqxx::binarystring message_ref("");
+    std::string message_ref("");
 
     std::ostringstream sout;
-    std::vector<std::pair<pqxx::binarystring, unsigned> > vrefs;
+    std::vector<std::pair<std::string, unsigned> > vrefs;
     for (const auto &pair : get_changes()) {
         if (0 == cnt % cont.max_items) {
             if (cnt) {
@@ -592,9 +591,9 @@ std::size_t RefType::mkXMLs(bool isSSL,
             }
             db.p_W->exec_prepared("insert_спрСеансыОбмена");
             pqxx::result rs = db.p_W->exec_prepared("спрСеансыОбмена",integ_ref,outer_ref);
-            message_id   = rs[0][2].c_str(),
-                    message_date = rs[0][1].c_str();
-            message_ref  = pqxx::binarystring(rs[0][0]);
+            message_id   = rs[0][2].c_str();
+            message_date = rs[0][1].c_str();
+            message_ref  = pqxx::to_string(rs[0][0]);
             db.commit();
 
             sout << "<?xml version='1.0' encoding='UTF-8'?>\n"
@@ -633,7 +632,7 @@ std::size_t RefType::mkXMLs(bool isSSL,
 
     return cnt;
 }
-void RefType::item(const pqxx::binarystring &item_ref, std::ostringstream &sout) const {
+void RefType::item(const std::string &item_ref, std::ostringstream &sout) const {
     DB &db=cont.get_con();
     // внешний спровочник
     std::vector<std::string> lids;

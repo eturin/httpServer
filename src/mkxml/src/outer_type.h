@@ -7,12 +7,12 @@
 #include <string>
 
 struct OuterType: public RowTableType {
-    OuterType(pqxx::binarystring id, Context & cont);
+    OuterType(const std::string &id, Context & cont);
     std::string outer_code,
                 outer_name,
                 system_code;
-    pqxx::binarystring system_ref,
-                       outer_ref;
+    std::string system_ref,
+                outer_ref;
 };
 
 #endif

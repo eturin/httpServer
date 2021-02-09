@@ -7,7 +7,7 @@
 
 struct RowTableType {
     RowTableType();
-    RowTableType(pqxx::binarystring ref,
+    RowTableType(const std::string &ref,
                  const char * name,
                  const char * table_type,
                  const char * table,
@@ -25,7 +25,7 @@ struct RowTableType {
                 table_classifiers,
                 table_attributes,
                 table_yarls;
-    pqxx::binarystring ref;
+    std::string ref;
     const std::string & get_field_name(Context & cont);
     const std::string & get_field_code(Context & cont);
 };

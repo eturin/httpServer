@@ -45,13 +45,13 @@ int main() {
     while (std::cin >> str_integr_ref) {
         std::chrono::system_clock::time_point start = std::chrono::system_clock::now();
 
-        pqxx::binarystring integr_ref = cont.from_hex(str_integr_ref.c_str());
-        pqxx::result rs = db.p_W->exec_prepared("get_ИнтеграционныеКомпоненты",integr_ref);
+        std::basic_string<std::byte> integr_ref = cont.from_hex(str_integr_ref.c_str());
+        pqxx::result rs = db.p_W->exec_prepared("get_ИнтеграционныеКомпоненты", integr_ref);
         int n = rs.affected_rows();
         for (const auto &row : rs) {
             cont.max_items = row["РазмерПорции"].as<unsigned>();
-            cont.outer_ref = pqxx::binarystring(row["ВнешнийСправочник"]);
-            pqxx::binarystring node_ref(row["Узел"]);
+            cont.outer_ref = pqxx::to_string(row["ВнешнийСправочник"]);
+            std::string node_ref=pqxx::to_string(row["Узел"]);
             std::string str_outer_ref;
             RefType rt = RefType(cont.outer_ref, cont);
             std::cout << row["Наименование"].c_str() << " ["

@@ -1,6 +1,6 @@
 #include "row_table_type.h"
 
-RowTableType::RowTableType(pqxx::binarystring ref,
+RowTableType::RowTableType(const std::string &ref,
                            const char *name,
                            const char *table_type,
                            const char *table,
@@ -15,9 +15,8 @@ RowTableType::RowTableType(pqxx::binarystring ref,
                                                       table_attributes(table_attributes),
                                                       table_yarls(table_yarls),
                                                       ref(ref) {}
-RowTableType::RowTableType():ref(pqxx::binarystring("")),name("") {}
-RowTableType::RowTableType(const std::string &name, Context & cont) : ref(pqxx::binarystring("")),
-                                                                      name(name){
+RowTableType::RowTableType():name("") {}
+RowTableType::RowTableType(const std::string &name, Context & cont) : name(name){
     RowTableType &tmp = cont.mTablesType[cont.mTablesName[name]];
     table_type  = tmp.table_type;
     table       = tmp.table;

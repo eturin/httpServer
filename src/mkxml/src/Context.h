@@ -25,11 +25,11 @@ struct Context {
 
     DB & get_con();
     DB * activate_con(DB *);
-    pqxx::binarystring from_hex(const std::string & str) const;
+    std::basic_string<std::byte> from_hex(const std::string & str) const;
 
     std::map<std::string,std::string> prepared_sql;
     unsigned max_items;
-    pqxx::binarystring outer_ref;
+    std::string outer_ref;
     std::vector<DB*> pool;
     std::string get_connection_string() const;
     std::map<std::string, RowTableType> mTablesType;
