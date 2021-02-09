@@ -44,8 +44,8 @@ target_link_libraries(init pq)
 project(mkxml)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/handlers)
 add_executable(mkxml
-        src/mkxml/Context.cpp
-        src/mkxml/main.cpp)
+        src/mkxml/src/Context.cpp
+        src/mkxml/main.cpp src/mkxml/src/field.h src/mkxml/src/db.h src/mkxml/src/row_table_type.h src/mkxml/src/db.cpp src/mkxml/src/row_table_type.cpp src/mkxml/src/outer_type.h src/mkxml/src/ref_type.h src/mkxml/src/outer_type.cpp src/mkxml/src/ref_type.cpp)
 target_link_libraries(mkxml pqxx)
 target_link_libraries(mkxml pq)
 target_link_libraries(mkxml ssl)

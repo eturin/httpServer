@@ -1,8 +1,10 @@
 #include <iostream>
 #include <chrono>
-#include "Context.h"
+#include <string>
 
-
+#include "src/Context.h"
+#include "src/row_table_type.h"
+#include "src/ref_type.h"
 
 int main() {
     Context cont;
