@@ -31,4 +31,4 @@ RUN mkdir -p /opt/api/                                              \
     && cd /opt/api && rm -rf project
 
 WORKDIR /opt/api
-ENTRYPOINT /usr/sbin/rsyslogd && ./httpServer 0.0.0.0 8888 10 .
+ENTRYPOINT /usr/sbin/rsyslogd && ./httpServer
