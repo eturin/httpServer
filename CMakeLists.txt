@@ -33,6 +33,8 @@ add_executable(httpServer
 target_link_libraries(httpServer ${Boost_LIBRARIES})
 target_link_libraries(httpServer pqxx)
 target_link_libraries(httpServer pq)
+install(TARGETS httpServer
+        DESTINATION /opt/api/)
 
 project(init)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/handlers)
@@ -40,6 +42,8 @@ add_executable(init
         src/init/main.cpp)
 target_link_libraries(init pqxx)
 target_link_libraries(init pq)
+install(TARGETS init
+        DESTINATION /opt/api/handlers/)
 
 project(mkxml)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/handlers)
@@ -51,3 +55,5 @@ target_link_libraries(mkxml pq)
 target_link_libraries(mkxml ssl)
 target_link_libraries(mkxml crypto)
 target_link_libraries(mkxml dl)
+install(TARGETS mkxml
+        DESTINATION /opt/api/handlers/)
