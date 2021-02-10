@@ -12,4 +12,10 @@ services:
                         - DB_NAME=NSI
                         - DB_USER=user1c
                         - DB_USER_PASS=sGLaVj4PUw
+                        - LISTEN_ADDR=0.0.0.0
+                        - APP_PORT=8888
+                        - DOC_ROOT=.
+                        - THREADS=7
+                volumes:
+                        - ./api/log:/var/log
 

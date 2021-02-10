@@ -17,7 +17,11 @@ int main(int argc, char* argv[]) {
                *db_port      = ENV("DB_PORT"     ,"5432"         ),
                *db_name      = ENV("DB_NAME"     ,"NSI"          ),
                *db_user      = ENV("DB_USER"     ,"user1c"       ),
-               *db_user_pass = ENV("DB_USER_PASS","sGLaVj4PUw"   );
+               *db_user_pass = ENV("DB_USER_PASS","sGLaVj4PUw"   ),
+               *listen_addr  = ENV("LISTEN_ADDR" ,"0.0.0.0"      ),
+               *app_port     = ENV("APP_PORT"    ,"8888"         ),
+               *doc_root     = ENV("DOC_ROOT"    ,"."            ),
+               *threads      = ENV("THREADS"     ,"7"            );
     std::string connection_str =std::string(R"(
             dbname   = )")+ db_name      + R"(
             user     = )" + db_user      + R"(
@@ -34,16 +38,6 @@ int main(int argc, char* argv[]) {
     std::shared_ptr<spdlog::logger> syslog_logger = spdlog::syslog_logger_mt("syslog", "api-cpp", LOG_PID | LOG_CONS);
 
     try {
-        if (argc != 5) {
-            std::cerr << "Использование: http_server <address> <port> <threads> <doc_root>\n"
-                      << "  Для IPv4:\n"
-                      << "    "<<argv[0]<<" 0.0.0.0 80 1 .\n"
-                      << "  Для IPv6:\n"
-                      << "    "<<argv[0]<<" 0::0 80 1 .\n";
-            return 1;
-        }
-
-
         syslog_logger->info("Start.");
         syslog_logger->info("Настройки: {0}, {1}, {2}, {3}, {4}", DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_USER_PASS);
         // инициализация приложения
@@ -124,11 +118,11 @@ int main(int argc, char* argv[]) {
         if (!waitpid(pid,&status,WNOHANG)) kill(pid,9);
 
         // инициализация сервера
-        std::size_t num_threads = boost::lexical_cast<std::size_t>(argv[3]);
+        std::size_t num_threads = boost::lexical_cast<std::size_t>(threads);
         http::server3::Context cont(syslog_logger);
         if (cont.make_pool(num_threads, connection_str)) { // инициализация контекста
-            syslog_logger->info("Параметры запуска сервера.... {0} {1} {2} {3}",argv[1],argv[2],num_threads,argv[4]);
-            http::server3::server s(argv[1], argv[2], argv[4], num_threads, cont);
+            syslog_logger->info("Параметры запуска сервера.... {0} {1} {2} {3}", listen_addr, app_port, num_threads, doc_root);
+            http::server3::server s(listen_addr, app_port, doc_root, num_threads, cont);
             // запуск
             s.run();
         } else {
