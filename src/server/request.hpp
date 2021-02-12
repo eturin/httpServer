@@ -6,6 +6,7 @@
 #include <pqxx/pqxx>
 #include "header.hpp"
 #include "context.hpp"
+#include "common.hpp"
 
 namespace http {
     namespace server3 {
@@ -23,8 +24,8 @@ namespace http {
             std::vector<header> params;
             std::size_t body_size;
             std::vector<char> body;
-        private:
             mutable std::string ref;
+
         };
     } // namespace server3
 } // namespace http

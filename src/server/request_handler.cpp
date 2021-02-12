@@ -45,12 +45,7 @@ namespace http {
 
             if (request_path.rfind("/sync/") == 0
                 || request_path.rfind("/async/") == 0) {
-                //  сохраняем
-                if(!req.save(context.get_conn(), context)) {
-                    rep = reply::stock_reply(reply::internal_server_error);
-                    context.syslog_logger->error("Запрс не сохранен в ПТС НСИ");
-                    return true;
-                };
+
                 //определяем обработчик
                 pqxx::connection *conn = context.get_conn();
                 if (!conn->is_open() && !context.prepare(conn)) {
@@ -59,8 +54,18 @@ namespace http {
                 }
                 pqxx::work W(*conn);
                 pqxx::result r = W.exec_prepared("is_cpp",req.end_point);
+                W.commit();
                 if (r.affected_rows()) {
                     client->sync = r[0][0].c_str()[0] =='t';
+
+
+                    //  сохраняем
+                    if(!client->sync && !req.save(context.get_conn(), context)) {
+                        rep = reply::stock_reply(reply::internal_server_error);
+                        context.syslog_logger->error("Запрс не сохранен в ПТС НСИ");
+                        return true;
+                    };
+
                     //запуск обработчика
                     if (-1==pipe(client->fd_in) || -1==pipe(client->fd_out) || -1==pipe(client->fd_err)) {
                         int err=errno;
@@ -125,6 +130,12 @@ namespace http {
                     //передаем body
                     return false;
                 } else {
+                    //  сохраняем
+                    if(!req.save(context.get_conn(), context)) {
+                        rep = reply::stock_reply(reply::internal_server_error);
+                        context.syslog_logger->error("Запрс не сохранен в ПТС НСИ");
+                        return true;
+                    };
                     //ответ при отсутствие обработчика
                     rep.status = reply::not_implemented;
 

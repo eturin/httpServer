@@ -19,7 +19,8 @@ namespace http {
         class connection : public boost::enable_shared_from_this<connection>, private boost::noncopyable {
         public:
             explicit connection(boost::asio::io_service& io_service,
-                                request_handler& handler);
+                                request_handler& handler,
+                                Context &context);
             // socket соединения
             boost::asio::ip::tcp::socket& socket();
             // запуск первой асинхронной операции для соединения
@@ -33,6 +34,7 @@ namespace http {
             bool sync=false;
             ~connection();
         private:
+            Context &context;
             // время получения запроса
             std::chrono::system_clock::time_point start_time;
             // обработчик завершения операции записи в socket

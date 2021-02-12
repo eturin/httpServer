@@ -8,8 +8,10 @@ namespace http {
 
         bool request::save(pqxx::connection * conn, Context & cont)  const{
             pqxx::work W(*conn);
-            if (!conn->is_open() && !cont.prepare(conn))
+            if (!conn->is_open() && !cont.prepare(conn)) {
+                cont.syslog_logger->error("Restore connection error");
                 return false;
+            }
             // URL,Метод,ТипСообщения,Размер,data
             std::size_t pos = uri.find('?');
             pos = pos == std::string::npos ? uri.size() : pos;

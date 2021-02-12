@@ -33,8 +33,32 @@ namespace http {
                 )");
                 conn->prepare("is_cpp", R"(
                 --определение обработчика
-                select t.cpp from rq_Запросыid as t where t.Код = $1 and t.Использовать;
+                select t.Синхронно, t.cpp from rq_Запросыid as t where t.Код = $1 and t.Использовать;
                 )");
+                conn->prepare("save_result_to_queue", R"(
+                update rq_ВходящаяОчередьid set КоличествоПопыток=КоличествоПопыток+1,СообщениеОбработчика =  substr($2::text || E'\n' || СообщениеОбработчика,0,500)::mvarchar, ДатаОбработки=now() where Ссылка = $1;
+                )");
+                conn->prepare("arh_queue", R"(
+                insert into rq_АрхивОчередиid (Ссылка,ПометкаУдаления,ИмяПредопределенныхДанных,Дата,url,Метод,ТипСообщения,Размер,КоличествоПопыток,СообщениеОбработчика,ДатаОбработки,ВходящийИдентификатор,data)
+                select Ссылка,ПометкаУдаления,ИмяПредопределенныхДанных,Дата,url,Метод,ТипСообщения,Размер,КоличествоПопыток,СообщениеОбработчика,ДатаОбработки,ВходящийИдентификатор,data
+                from rq_ВходящаяОчередьid
+                where Ссылка = $1;
+                )");
+                conn->prepare("arh_queue_headers", R"(
+                insert into rq_АрхивОчереди_Заголовкиid (Ссылка,keyfield,НомерСтроки,Имя,Значение)
+                select Ссылка,keyfield,НомерСтроки,Имя,Значение
+                from rq_ВходящаяОчередь_Заголовкиid
+                where Ссылка = $1;
+                )");
+                conn->prepare("arh_queue_params", R"(
+                insert into rq_АрхивОчереди_Параметрыid (Ссылка,keyfield,НомерСтроки,Имя,Значение)
+                select Ссылка,keyfield,НомерСтроки,Имя,Значение
+                from rq_ВходящаяОчередь_Параметрыid
+                where Ссылка = $1;
+                )");
+                conn->prepare("del_queue", R"(delete from rq_ВходящаяОчередьid where Ссылка = $1;)");
+                conn->prepare("del_queue_headers", R"(delete from rq_ВходящаяОчередь_Заголовкиid where Ссылка = $1;)");
+                conn->prepare("del_queue_params", R"(delete from rq_ВходящаяОчередь_Параметрыid where Ссылка = $1;)");
 
                 return true;
             } else return false;

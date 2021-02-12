@@ -8,11 +8,13 @@
 namespace http {
     namespace server3 {
         connection::connection(boost::asio::io_service& io_service,
-                               request_handler& handler) : io_service(io_service),
-                                                           strand_(io_service),
-                                                           socket_(io_service),
-                                                           request_handler_(handler),
-                                                           start_time(std::chrono::system_clock::now())
+                               request_handler& handler,
+                               Context &context) : context(context),
+                                                   io_service(io_service),
+                                                   strand_(io_service),
+                                                   socket_(io_service),
+                                                   request_handler_(handler),
+                                                   start_time(std::chrono::system_clock::now())
         {
         }
 
@@ -52,7 +54,7 @@ namespace http {
                         boost::asio::async_write(socket_,
                                                  reply_.to_buffers(),
                                                  strand_.wrap(boost::bind(&connection::handle_write_socket,
-                                                                                     shared_from_this(),
+                                                                                         shared_from_this(),
                                                                                          boost::asio::placeholders::error)));
                     } else {
                         std::vector<boost::asio::const_buffer> vbody;
@@ -60,8 +62,8 @@ namespace http {
                         stream_in = new boost::asio::posix::stream_descriptor(io_service, fd_in[1]);
                         stream_in->async_write_some(vbody,
                                                    strand_.wrap(boost::bind(&connection::handle_write_stream,
-                                                                                         shared_from_this(),
-                                                                                          boost::asio::placeholders::error)));
+                                                                                          shared_from_this(),
+                                                                                           boost::asio::placeholders::error)));
                     }
                 } else if (!result) {
                     reply_ = reply::stock_reply(reply::bad_request);
@@ -73,9 +75,9 @@ namespace http {
                 } else {
                     socket_.async_read_some(boost::asio::buffer(buffer_),
                                             strand_.wrap(boost::bind(&connection::handle_read_socket,
-                                                                               shared_from_this(),
-                                                                                  boost::asio::placeholders::error,
-                                                                                  boost::asio::placeholders::bytes_transferred)));
+                                                                                  shared_from_this(),
+                                                                                   boost::asio::placeholders::error,
+                                                                                   boost::asio::placeholders::bytes_transferred)));
                 }
             }
 
@@ -110,7 +112,7 @@ namespace http {
                                                                          boost::asio::placeholders::bytes_transferred)));
                 } else {
                     stream_out->close();
-                    delete  stream_out;
+                    delete stream_out;
                     fd_out[0] = 0;
                     stream_out = nullptr;
 
@@ -118,9 +120,9 @@ namespace http {
                     stream_err = new boost::asio::posix::stream_descriptor(io_service, fd_err[0]);
                     stream_err->async_read_some(boost::asio::buffer(buffer_),
                                                 strand_.wrap(boost::bind(&connection::handle_read_stream,
-                                                                          shared_from_this(),
-                                                                           boost::asio::placeholders::error,
-                                                                           boost::asio::placeholders::bytes_transferred)));
+                                                                         shared_from_this(),
+                                                                         boost::asio::placeholders::error,
+                                                                         boost::asio::placeholders::bytes_transferred)));
                 }
                 return;
             }
@@ -133,33 +135,68 @@ namespace http {
                     reply_.content.append(buffer_.data(), buffer_.data() + bytes_transferred);
                     stream_err->async_read_some(boost::asio::buffer(buffer_),
                                                 strand_.wrap(boost::bind(&connection::handle_read_stream,
-                                                                          shared_from_this(),
-                                                                           boost::asio::placeholders::error,
-                                                                           boost::asio::placeholders::bytes_transferred)));
+                                                                         shared_from_this(),
+                                                                         boost::asio::placeholders::error,
+                                                                         boost::asio::placeholders::bytes_transferred)));
                     return;
                 } else {
                     stream_err->close();
-                    delete  stream_err;
+                    delete stream_err;
                     fd_err[0] = 0;
                     stream_err = nullptr;
                 }
             }
 
             // останавливаем обработчик
-            int  status;
-            if (waitpid(pid,&status,WNOHANG)) pid = 0;
+            int status;
+            if (waitpid(pid, &status, WNOHANG)) pid = 0;
 
-            // отправляем сформированный ответ
-            reply_.headers[0].name = "Content-Length";
-            reply_.headers[0].value = std::to_string(reply_.content.size());
-            reply_.headers[1].name = "Content-Type";
-            reply_.headers[1].value = "text";
-            boost::asio::async_write(socket_,
-                                     reply_.to_buffers(),
-                                     strand_.wrap(boost::bind(&connection::handle_write_socket,
-                                                                           shared_from_this(),
-                                                                            boost::asio::placeholders::error)));
+            if (sync) {
+                // отправляем сформированный ответ (sync only)
+                reply_.headers[0].name = "Content-Length";
+                reply_.headers[0].value = std::to_string(reply_.content.size());
+                reply_.headers[1].name = "Content-Type";
+                reply_.headers[1].value = "text";
+                boost::asio::async_write(socket_,
+                                         reply_.to_buffers(),
+                                         strand_.wrap(boost::bind(&connection::handle_write_socket,
+                                                                               shared_from_this(),
+                                                                                boost::asio::placeholders::error)));
+            } else {
+                auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::system_clock::now() - start_time).count();
+                context.syslog_logger->info("{} {} {}ms {} {}", request_.method, request_.end_point, ms,
+                                            request_.body.size(), reply_.content.size());
 
+                pqxx::connection *conn = context.get_conn();
+                pqxx::work W(*conn);
+                if (!conn->is_open() && !context.prepare(conn)) {
+                    context.syslog_logger->error("Restore connection error");
+                    return;
+                }
+                pqxx::result rs = W.exec_prepared("save_result_to_queue", request_.ref, reply_.content);
+                if (!rs.affected_rows()) {
+                    context.syslog_logger->error("Cannot save result to DB");
+                    return;
+                }
+
+                rs = W.exec_prepared("arh_queue", request_.ref);
+                if (!rs.affected_rows()) {
+                    context.syslog_logger->error("Cannot copy queue to arh");
+                    return;
+                }
+
+                rs = W.exec_prepared("arh_queue_headers", request_.ref);
+                rs = W.exec_prepared("arh_queue_params" , request_.ref);
+                rs = W.exec_prepared("del_queue_headers", request_.ref);
+                rs = W.exec_prepared("del_queue_params" , request_.ref);
+                rs = W.exec_prepared("del_queue"        , request_.ref);
+                if (!rs.affected_rows()) {
+                    context.syslog_logger->error("Cannot delete queue");
+                    return;
+                }
+                W.commit();
+            }
         }
         void connection::handle_write_stream(const boost::system::error_code &e) {
             stream_in->close();
@@ -193,6 +230,14 @@ namespace http {
                                          strand_.wrap(boost::bind(&connection::handle_write_socket,
                                                                                shared_from_this(),
                                                                                 boost::asio::placeholders::error)));
+
+                // читаем stdout
+                stream_out = new boost::asio::posix::stream_descriptor(io_service, fd_out[0]);
+                stream_out->async_read_some(boost::asio::buffer(buffer_),
+                                            strand_.wrap(boost::bind(&connection::handle_read_stream,
+                                                                     shared_from_this(),
+                                                                     boost::asio::placeholders::error,
+                                                                     boost::asio::placeholders::bytes_transferred)));
 
             }
         }
