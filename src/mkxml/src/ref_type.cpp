@@ -208,10 +208,16 @@ void field(const pqxx::row &row,
         if (vid == "rЗначенияАтрибутовid") {
             sout << "\t\t\t\t\t<Type>enum</Type>\n"
                  << "\t\t\t\t\t<Value>\n"
-                 << "\t\t\t\t\t\t<valueString>"<< name << "</valueString>\n"
+                 << "\t\t\t\t\t\t<valueString>" << name << "</valueString>\n"
                  << "\t\t\t\t\t</Value>\n"
                  << "\t\t\t\t\t<Name/>\n"
                  << "\t\t\t\t\t<TableName>ЗначенияАтрибутов</TableName>\n";
+        } else if (vid == "rФайлid") {
+            pqxx::result rs = db.p_W->exec_prepared("_rФайлid_",rtt.ref);
+            sout << "\t\t\t\t\t<Type>simple</Type>\n"
+                 << "\t\t\t\t\t<Value>\n"
+                 << "\t\t\t\t\t\t<valueString>"<< (rs.affected_rows() ? rs[0]["ДвоичныеДанныеФайла_b64"].c_str() : "") << "</valueString>\n"
+                 << "\t\t\t\t\t</Value>\n";
         } else {
             if (cont.prepared_sql.find("table_to_outer") == cont.prepared_sql.end()) {
                 std::string sql(R"(
@@ -559,6 +565,14 @@ std::size_t RefType::mkXMLs(bool isSSL,
         )";
         cont.prepared_sql["_sВерсииОбъектовid_"] = sql;
         db.p_cn->prepare("_sВерсииОбъектовid_", sql);
+
+        sql = R"(/*получение данных файла*/
+        select r.ДвоичныеДанныеФайла_b64
+        from rФайлыid as f
+             join sДвоичныеДанныеФайловid as r on(r.Файл=f.ТекущаяВерсия)
+        where f.ссылка = $1)";
+        cont.prepared_sql["_rФайлid_"] = sql;
+        db.p_cn->prepare("_rФайлid_", sql);
     }
 
     std::string message_id, message_date;
